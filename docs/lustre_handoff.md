@@ -1,6 +1,9 @@
 # Lustre — Design Handoff
 
-> **Status:** Design handoff — no Lustre code exists yet.
+> **Status:** Design handoff — no Lustre code exists yet. **Superseded as the language
+> reference** by `docs/lustre_core_spec.md` (v1), written once every decision below was
+> resolved — where the two disagree, the spec wins. This document remains the record of *why*
+> each decision was made; the spec is *what* was decided.
 > **Scope:** Scoping decisions for Lustre, the styling/animation layer for Iris
 > (`../iris`), reconciled against the current, post-pivot state of Iris and the real
 > capabilities of Penumbra (`../penumbra-proto`) as its first backend.
@@ -282,9 +285,8 @@ for `IrisComponent` → real Penumbra widgets.
 
 ## 6. What the next design pass should produce
 
-A single written Lustre language spec, the same shape `iris_core_spec.md` is for Iris:
-grammar (selectors, properties, variables, units, transitions — prose + examples, no formal
-BNF needed yet), the v1 property reference (one entry per property: accepted units, which
-widget types/pseudo-states it's meaningful on, stubbed vs. real today), the resolved-style IR
-shape that `iris-penumbra-backend` will consume, and an open-questions section carrying
-forward §4 above.
+**Done — see `docs/lustre_core_spec.md` (v1).** Grammar (selectors, cascade, variables,
+units), the v1 property reference (one entry per property, real vs. stubbed), a sketch of the
+resolved-style IR `iris-penumbra-backend` will consume, a worked example updated for current
+Iris syntax and Lustre's lowercase primitive selectors, the error catalogue from §4 above, and
+an open-questions section carrying forward §5.

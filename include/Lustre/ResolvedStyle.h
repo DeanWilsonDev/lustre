@@ -1,0 +1,87 @@
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+
+namespace Lustre {
+
+// docs/lustre_core_spec.md §3 — the resolver's output. Backend-agnostic:
+// carries every property in §2 (real or stubbed), no Penumbra (or any other
+// backend) type anywhere in here. A bridge repo (`iris-penumbra-backend` for
+// Penumbra) maps this onto concrete style structs.
+
+struct Color {
+    std::uint8_t R{0};
+    std::uint8_t G{0};
+    std::uint8_t B{0};
+    std::uint8_t A{255};
+
+    friend bool operator==(const Color&, const Color&) = default;
+};
+
+struct EdgeInsets {
+    float Left{0.0F};
+    float Top{0.0F};
+    float Right{0.0F};
+    float Bottom{0.0F};
+
+    friend bool operator==(const EdgeInsets&, const EdgeInsets&) = default;
+};
+
+struct FontRequest {
+    std::string Path;
+    float       SizeLogical{0.0F};
+
+    friend bool operator==(const FontRequest&, const FontRequest&) = default;
+};
+
+struct ColorTransition {
+    std::string Property;
+    float       DurationSeconds{0.0F};
+
+    friend bool operator==(const ColorTransition&, const ColorTransition&) = default;
+};
+
+enum class Display { Stack, Inline };
+enum class FlexDirection { Row, Column };
+enum class Align { Start, Center, End, Stretch };
+
+// A resolved length, kept unresolved-unit-free: §1.5's px/%/vw/vh/rem/em are
+// all folded down to a single logical-pixel float by the resolver (against
+// the parent's computed size for %, the window's logical size for vw/vh).
+// rem/em are stubbed per §1.5/§7 — the resolver has no root/current
+// font-size convention yet, so a rem/em value resolves to itself unscaled,
+// same "accepted, not yet applied" treatment as width/height/transform.
+struct ResolvedStyle {
+    std::optional<Color>       BackgroundColor;
+    std::optional<Color>       BorderColor;
+    std::optional<float>       BorderWidth;
+    std::optional<float>       BorderRadius;
+    std::optional<EdgeInsets>  Padding;
+    std::optional<EdgeInsets>  Margin;
+    std::optional<Color>       TextColor;
+    std::optional<FontRequest> Font;
+    std::optional<Display>       DisplayMode;
+    std::optional<FlexDirection> FlexDirectionMode;
+    std::optional<float>         Gap;
+    std::optional<Align>         AlignItems;
+    std::optional<ColorTransition> Transition;
+
+    // Pseudo-class-scoped overlays — present only if the source rule defined
+    // them. Recursive rather than flat fields so a pseudo-class block can in
+    // principle override any property, matching §1.2's "a pseudo-class block
+    // nests exactly like any other selector block."
+    std::shared_ptr<ResolvedStyle> Hover;
+    std::shared_ptr<ResolvedStyle> Active;
+    std::shared_ptr<ResolvedStyle> Disabled;
+
+    // Stubbed properties (§2) — carried through so a future backend mapping
+    // has something to consume; no current backend reads these.
+    std::optional<float> WidthLogical;
+    std::optional<float> HeightLogical;
+    std::optional<float> TransformScale;
+};
+
+} // namespace Lustre
