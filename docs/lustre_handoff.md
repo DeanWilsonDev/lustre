@@ -53,6 +53,17 @@ Two layers only, no specificity system beyond nesting (below): a component's own
 of the earlier draft's `global.lustre` + per-component-file model; this pass confirms it as
 the whole cascade, not a starting point for something richer.
 
+### Primitive selectors stay lowercase; a closed mapping table targets Iris's PascalCase tags
+
+`iris_core_spec.md`'s PascalCase rule (`<Frame>`, `<Inline>`) exists to visually distinguish
+primitives from components inside JSX-like angle brackets — a problem that doesn't exist in a
+CSS-like selector file. Lustre's primitive-element selectors stay lowercase (`frame { }`,
+`inline { }`), matching CSS convention and the earlier draft's own style. A small, closed
+mapping table (`frame→Frame`, `inline→Inline`, `grid→Grid`, `image→Image`, `text→Text`) in the
+`lustre` repo translates them to Iris's real tag names at resolution time. This only covers
+the five Core primitives — components were never selectable by tag name (only by `class`), so
+there's no lowercase/PascalCase ambiguity for them to begin with.
+
 ### One class per element
 
 `class` holds exactly one identifier, never a space-separated list. Every example in the
@@ -109,6 +120,46 @@ grammar, stubbed at resolution time, tracked as an open question below rather th
 feature request (this one's resolvable entirely inside Lustre's own resolver once a
 `:root { font-size: ... }`-style convention is designed — no Penumbra or Iris change implied).
 
+### `border-radius`: single uniform value only
+
+Matches `BoxStyle::BorderRadius` (one float) exactly — no CSS per-corner shorthand. Per-corner
+radius was explicitly "not requested" by any real consumer yet
+(`penumbra_theming_requirements.md` §6); no need to spec, let alone stub, a shape nobody's
+asked for.
+
+### Fonts: plain path via variables, no separate `@font-face`-style construct
+
+`--font-body: "assets/fonts/body.ttf"` (already the earlier draft's convention), referenced
+via `font-family: var(--font-body)`. No dedicated top-level font-declaration block — Label's
+actual field is a single `FontHandle`, obtained from `Render::IFontBackend` at a specific path
++ point size (`penumbra_dpi_requirements.md`'s `TTF_OpenFont(Path, PointSizeLogical *
+DpiScaleFactor)`); there's no weight/style-variant concept for a dedicated construct to manage.
+One resolution nuance worth recording: `font-family` and `font-size` together form the actual
+font-request key (path + point size), not two independently-mutable style knobs — changing
+either one means requesting a different `FontHandle` from the backend, not adjusting a live
+field on an existing one. The resolver should cache by (path, size) to avoid re-requesting an
+identical handle every reconcile.
+
+### Layout (stack direction, gap, cross-align) is Lustre's, CSS-style
+
+`display`/`flex-direction`/`gap`/`align-items`-shaped properties resolve to Penumbra's
+`Box::Layout`/`ChildGap`/`CrossAlignment` — currently **exposed through no Iris prop at all**;
+the only thing that touches them today is a hardcoded stub (`<Grid>` always maps to
+`LayoutMode::HorizontalStack`, ignoring whatever the author actually wrote — a known gap,
+`iris_core_spec.md` §9). Putting layout in Lustre rather than as new Iris props matches CSS's
+own convention (flexbox is styling, not markup) and Lustre's explicit CSS-familiarity design
+goal — and gives the `<Grid>` stub a real replacement path once Lustre can express direction/
+gap/align, rather than requiring a separate round of new Iris-level prop design.
+
+### `width`/`height`: documented, unimplemented
+
+Same treatment as `transform`: real, named properties in the v1 spec, not omitted, even though
+nothing in Penumbra can back them yet. Confirmed by reading `WidgetBase`/`Box`/`Label`
+directly: sizing is entirely intrinsic (`Measure`/`Arrange` from content + `Padding`), no
+fixed-size override concept exists anywhere. Omitting two of the most basic CSS properties
+from a language whose explicit goal is CSS familiarity would be more surprising than stubbing
+them. Tracked in `penumbra-proto/docs/lustre_style_gaps_requirements.md`.
+
 ### Pseudo-classes: full language surface now, stub what the backend can't do yet, file it
 
 `:hover`, `:active`, `:disabled` are valid on any element `class` can be attached to, in the
@@ -158,6 +209,25 @@ data only, not component logic) but the underlying need — something in the run
 application able to react to a changed file without a full rebuild — is shared. Flagged in
 `iris/docs/lustre_hotreload_iris_requirements.md` rather than solved here.
 
+### Iris gains root-widget registration, for hot-reload's restyle pass
+
+Applying a resolved style at mount and re-applying one when `IrisPropDiff::ClassName` changes
+both live in `iris-penumbra-backend` (it already touches `Walker.cpp`'s build step and
+`PenumbraWidgetAdapter::ApplyPropDiff`) — no new decision needed there. But a hot-reloaded
+`.lustre` file needs to restyle *every* mounted widget, not just the one whose class just
+changed, which means something needs a reference to the root to walk from. Iris currently has
+none — every runtime "Root" in the codebase is a compile-time AST root, not a mounted widget.
+
+This is being added to Iris itself, not scoped to Lustre or to `iris-penumbra-backend`:
+`Umbra::IWidget` is already the backend-agnostic interface the reconciler walks/mutates
+through, so holding a `Umbra::IWidget*` and handing it back out has no backend-specific content
+— building it per-backend would mean every backend reimplementing identical
+store-a-pointer/expose-a-getter logic. `IrisRuntime` already holds/tracks live widget state the
+same way. Proposed shape: `iris::RegisterRoot(Umbra::IWidget*)`/`iris::GetRoot()`, likely folded
+into `IrisRuntime`, callable by any consuming app right after it builds its tree — see
+`iris/docs/lustre_hotreload_iris_requirements.md` for the full reasoning. Benefit beyond
+Lustre: the next cross-cutting concern needing "the whole mounted tree" gets this for free.
+
 ### Lustre stays backend-agnostic; Penumbra mapping lives in `iris-penumbra-backend`
 
 Mirrors the `iris`/`iris-penumbra-backend` split exactly, for the same reason: Lustre is
@@ -170,7 +240,31 @@ a generic resolved-style IR — backend-agnostic named properties (`backgroundCo
 concrete `BoxStyle`/`ButtonStyle`/`CheckboxStyle`, the same division of labor it already has
 for `IrisComponent` → real Penumbra widgets.
 
-## 4. Deliberately deferred, not designed here
+## 4. Error catalogue (starter)
+
+- **Undefined `var()` reference** — compile-time error, no fallback (§3 above).
+- **Duplicate selector, exact match** — two rule blocks with the literally identical selector
+  in the same file is a compile-time error (almost always a copy-paste mistake), consistent
+  with Lustre's existing compile-time strictness elsewhere. This only catches the *same*
+  selector written twice — two genuinely different selectors that happen to tie in computed
+  specificity still fall back to source order, unflagged, the same as real CSS.
+- **Component-boundary crossing is *not* a compile error, deliberately.** A standalone
+  `.lustre` file has no way to know which descendant elements belong to which nested component
+  instance — only the real render tree at resolve time knows that. So this rule is pure
+  resolve-time behavior: the resolver's descendant-matching walk treats a child component's own
+  root as opaque and doesn't search past it. A selector that "reaches too far" simply never
+  matches anything past that boundary — silent, not diagnosed, the same as a CSS selector that
+  matches zero elements today.
+- **No property-applicability validation in v1**, not even for primitive selectors where it
+  would be checkable (e.g. `frame { font-family: ...; }` — Lustre already knows a primitive
+  selector's target type via the lowercase→PascalCase table, the same information
+  `iris_core_spec.md` uses to say `<Text font=...>` is invalid outside Lustre). Skipped for
+  now for consistency: class selectors can't be checked the same way (Lustre doesn't parse
+  `.iris` files to know which primitive a class ends up on), so validating only the primitive
+  case would be partial coverage for a deferred amount of value — revisit once the resolver
+  exists and it's clear how much this matters in practice.
+
+## 5. Deliberately deferred, not designed here
 
 - Universal (`*`), attribute, and sibling (`+`/`~`) selectors — not in the earlier draft, no
   clear need yet.
@@ -183,13 +277,10 @@ for `IrisComponent` → real Penumbra widgets.
   scoping-stage one.
 - A `:root { font-size: ... }`-style convention for `rem`/`em` — noted above as Lustre's own
   problem to solve, not blocking this handoff.
-- The Lustre compiler's own error catalogue (undefined variable, cross-component-boundary
-  selector, `key`-shaped mistakes if any turn out to apply) — write once the grammar is fully
-  specced.
 - The `umbra-engine` backend's own style-struct mapping — same "deferred, Stage 6" status
   Iris itself gives it.
 
-## 5. What the next design pass should produce
+## 6. What the next design pass should produce
 
 A single written Lustre language spec, the same shape `iris_core_spec.md` is for Iris:
 grammar (selectors, properties, variables, units, transitions — prose + examples, no formal
