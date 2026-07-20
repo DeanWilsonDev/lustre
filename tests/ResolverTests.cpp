@@ -125,6 +125,56 @@ DESCRIBE("Resolver", {
         REQUIRE_TRUE(Style.BackgroundGradientEnd.has_value());
     });
 
+    IT("resolves max-width and text-overflow: ellipsis", {
+        const auto Sheet = ParseOrFail(R"(
+.inspector-row-value {
+    max-width: 220px;
+    text-overflow: ellipsis;
+}
+)",
+                                        "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("inspector-row-value", "Text", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.MaxWidthLogical.has_value());
+        ASSERT_TRUE(*Style.MaxWidthLogical == 220.0F);
+        REQUIRE_TRUE(Style.TextOverflowMode.has_value());
+        ASSERT_TRUE(*Style.TextOverflowMode == TextOverflow::Ellipsis);
+    });
+
+    IT("resolves text-overflow: clip", {
+        const auto Sheet = ParseOrFail(".x { max-width: 100px; text-overflow: clip; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Text", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.TextOverflowMode.has_value());
+        ASSERT_TRUE(*Style.TextOverflowMode == TextOverflow::Clip);
+    });
+
+    IT("max-width with no text-overflow still resolves (clamps size, no truncation mode set)", {
+        const auto Sheet = ParseOrFail(".x { max-width: 100px; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Text", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.MaxWidthLogical.has_value());
+        ASSERT_FALSE(Style.TextOverflowMode.has_value());
+    });
+
     IT("resolves a descendant selector across real ancestors", {
         const auto Sheet = ParseOrFail(R"(
 .card {

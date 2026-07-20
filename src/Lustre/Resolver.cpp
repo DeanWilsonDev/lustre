@@ -240,6 +240,14 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
         Out.WidthLogical = ParseLength(Resolved[0]);
     } else if (Prop == "height") {
         Out.HeightLogical = ParseLength(Resolved[0]);
+    } else if (Prop == "max-width") {
+        Out.MaxWidthLogical = ParseLength(Resolved[0]);
+    } else if (Prop == "text-overflow") {
+        if (Resolved[0].Literal == "clip") {
+            Out.TextOverflowMode = TextOverflow::Clip;
+        } else if (Resolved[0].Literal == "ellipsis") {
+            Out.TextOverflowMode = TextOverflow::Ellipsis;
+        }
     } else if (Prop == "transform") {
         if (Resolved[0].Literal == "scale" && Resolved[0].CallArgument) {
             float Value = 0.0F;

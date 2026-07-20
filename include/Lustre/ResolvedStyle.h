@@ -47,6 +47,12 @@ struct ColorTransition {
 enum class Display { Stack, Inline };
 enum class FlexDirection { Row, Column };
 enum class Align { Start, Center, End, Stretch };
+// docs/penumbra_iris_lustre_componentization_gaps_requirements.md's
+// InspectorRow migration finding: Label has no truncation concept at all,
+// so a long value can overflow instead of clipping. Only meaningful paired
+// with `max-width` below -- mirrors CSS's own text-overflow, which only
+// does anything once something has actually constrained the box's width.
+enum class TextOverflow { Clip, Ellipsis };
 
 // A resolved length, kept unresolved-unit-free: §1.5's px/%/vw/vh/rem/em are
 // all folded down to a single logical-pixel float by the resolver (against
@@ -90,6 +96,14 @@ struct ResolvedStyle {
     std::optional<float> WidthLogical;
     std::optional<float> HeightLogical;
     std::optional<float> TransformScale;
+
+    // `max-width` / `text-overflow` (`text` only) -- unlike `width` above,
+    // this pair is real: a backend `Label` can honor a maximum logical-pixel
+    // width without needing Penumbra's general fixed-size-override gap
+    // closed first, since text truncation only ever shrinks, never grows,
+    // the widget's own reported size.
+    std::optional<float>        MaxWidthLogical;
+    std::optional<TextOverflow> TextOverflowMode;
 };
 
 } // namespace Lustre
