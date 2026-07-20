@@ -379,7 +379,8 @@ void ApplyLayer(const Stylesheet* Sheet, const IStyleTarget& Target, bool Unboun
 
 std::string_view PrimitiveTagForSelector(std::string_view LustreSelectorName) {
     static const std::unordered_map<std::string_view, std::string_view> kMapping{
-        {"frame", "Frame"}, {"inline", "Inline"}, {"grid", "Grid"}, {"image", "Image"}, {"text", "Text"}};
+        {"frame", "Frame"}, {"inline", "Inline"}, {"grid", "Grid"},   {"image", "Image"},
+        {"text", "Text"},   {"scroll", "Scroll"}, {"input", "Input"}};
     auto It = kMapping.find(LustreSelectorName);
     return It == kMapping.end() ? std::string_view{} : It->second;
 }

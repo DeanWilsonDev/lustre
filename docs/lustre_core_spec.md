@@ -73,7 +73,8 @@ Three selector kinds, never combined into a compound selector:
   `card`. An Iris element carries at most one class; there is no space-separated multi-class
   form.
 - **Primitive-element selector** — `frame { }`, `inline { }`, `grid { }`, `image { }`,
-  `text { }`. Lowercase, deliberately not matching `iris_core_spec.md`'s PascalCase tag casing
+  `text { }`, `scroll { }`, `input { }`. Lowercase, deliberately not matching
+  `iris_core_spec.md`'s PascalCase tag casing
   (`<Frame>`) — that casing rule exists to distinguish primitives from components inside
   JSX-like angle brackets, a problem that doesn't exist in a CSS-like file. A closed mapping
   table translates each lowercase name to its real Iris tag at resolution time:
@@ -85,6 +86,12 @@ Three selector kinds, never combined into a compound selector:
   | `grid` | `Grid` |
   | `image` | `Image` |
   | `text` | `Text` |
+  | `scroll` | `Scroll` |
+  | `input` | `Input` |
+
+  (`icon`/`Icon` is a real Core primitive too, but predates this table being kept in sync
+  with every addition -- not resolvable by primitive selector yet, a pre-existing gap this
+  doc doesn't attempt to close.)
 
   Components are never selectable by tag name — only by `class` — so this table is closed and
   will only grow if Iris Core itself grows a new primitive.
