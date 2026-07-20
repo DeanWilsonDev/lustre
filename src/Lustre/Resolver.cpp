@@ -187,6 +187,10 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
 
     if (Prop == "background-color") {
         Out.BackgroundColor = ParseColor(Resolved[0]);
+    } else if (Prop == "background-gradient-start") {
+        Out.BackgroundGradientStart = ParseColor(Resolved[0]);
+    } else if (Prop == "background-gradient-end") {
+        Out.BackgroundGradientEnd = ParseColor(Resolved[0]);
     } else if (Prop == "border-color") {
         Out.BorderColor = ParseColor(Resolved[0]);
     } else if (Prop == "border-width") {
@@ -384,6 +388,17 @@ ResolvedStyle Resolver::Resolve(const IStyleTarget& Target, const StylesheetSet&
     // depth on either side.
     ApplyLayer(Sheets.Global, Target, Unbounded, Scope, Style, OutDiagnostics);
     ApplyLayer(Sheets.Component, Target, Unbounded, Scope, Style, OutDiagnostics);
+
+    // A gradient needs both stops -- if the cascade (across both layers, and
+    // possibly several rules within a layer) only ever supplied one half,
+    // treat it as unset rather than handing a backend a start color with no
+    // end (or vice versa). Checked once at the end rather than per-
+    // declaration since either half can come from either layer.
+    if (!Style.BackgroundGradientStart.has_value() || !Style.BackgroundGradientEnd.has_value()) {
+        Style.BackgroundGradientStart.reset();
+        Style.BackgroundGradientEnd.reset();
+    }
+
     return Style;
 }
 

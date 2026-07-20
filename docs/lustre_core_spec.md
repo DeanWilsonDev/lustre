@@ -191,6 +191,7 @@ any backend — see the linked feature-request doc for what would unblock it).
 | Property | Values | Applies to | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `background-color` | `<color>` | any | real | Maps to `BoxStyle::ColorBackground`. |
+| `background-gradient-start` / `background-gradient-end` | `<color>` | any | real | A top-to-bottom two-stop gradient fill, maps to `BoxStyle::GradientTop`/`GradientBottom` (`Box::Draw` prefers these over `background-color` when set — docs/penumbra_iris_lustre_componentization_gaps_requirements.md §2). Both must be set (from either layer, in any rule) or neither applies — a lone `-start` with no `-end` resolves to nothing, not a solid fill. Two plain color properties rather than a `linear-gradient(...)` function: v1's value grammar has no general multi-argument function-call form (`transform: scale(<number>)`'s `CallArgument` is single-argument only), and Penumbra's own `Renderer::DrawGradientRect` is itself only ever a vertical two-stop gradient — no angle, no more than two stops — so a function grammar would be accepting syntax the backend could never honor anyway. |
 | `border-color` | `<color>` | any | real | Maps to `BoxStyle::ColorBorder`. |
 | `border-width` | `<length>` | any | real | Maps to `BoxStyle::BorderWidth`. |
 | `border-radius` | `<length>` | any | real | Single uniform value only — `BoxStyle::BorderRadius` is one float, no CSS per-corner shorthand. |

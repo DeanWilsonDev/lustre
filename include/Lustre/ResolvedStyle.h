@@ -56,6 +56,14 @@ enum class Align { Start, Center, End, Stretch };
 // same "accepted, not yet applied" treatment as width/height/transform.
 struct ResolvedStyle {
     std::optional<Color>       BackgroundColor;
+    // A top-to-bottom two-stop gradient fill (docs/
+    // penumbra_iris_lustre_componentization_gaps_requirements.md §2) --
+    // `background-gradient-start`/`background-gradient-end`. Populated as a
+    // pair, same as Font below: the resolver only sets these once both
+    // colors are present in the same rule (or the cascade across global +
+    // component layers supplies both), never just one half.
+    std::optional<Color>       BackgroundGradientStart;
+    std::optional<Color>       BackgroundGradientEnd;
     std::optional<Color>       BorderColor;
     std::optional<float>       BorderWidth;
     std::optional<float>       BorderRadius;

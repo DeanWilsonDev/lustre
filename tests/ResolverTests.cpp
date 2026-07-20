@@ -71,6 +71,60 @@ DESCRIBE("Resolver", {
         ASSERT_FALSE(Style.BorderRadius.has_value());
     });
 
+    IT("resolves a background-gradient-start/-end pair", {
+        const auto Sheet = ParseOrFail(R"(
+.selected-row {
+    background-gradient-start: #4A90FF;
+    background-gradient-end: #2A5ADD;
+}
+)",
+                                        "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Row("selected-row", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Row, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.BackgroundGradientStart.has_value());
+        REQUIRE_TRUE(Style.BackgroundGradientEnd.has_value());
+        ASSERT_TRUE(Style.BackgroundGradientStart->R == 0x4A && Style.BackgroundGradientStart->G == 0x90 &&
+                    Style.BackgroundGradientStart->B == 0xFF);
+        ASSERT_TRUE(Style.BackgroundGradientEnd->R == 0x2A && Style.BackgroundGradientEnd->G == 0x5A &&
+                    Style.BackgroundGradientEnd->B == 0xDD);
+    });
+
+    IT("a lone background-gradient-start with no -end resolves to neither", {
+        const auto Sheet = ParseOrFail(".selected-row { background-gradient-start: #4A90FF; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Row("selected-row", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Row, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_FALSE(Style.BackgroundGradientStart.has_value());
+        ASSERT_FALSE(Style.BackgroundGradientEnd.has_value());
+    });
+
+    IT("a gradient pair split across global and component layers still resolves", {
+        const auto GlobalSheet = ParseOrFail(".selected-row { background-gradient-start: #4A90FF; }", "global.lustre");
+        const auto ComponentSheet = ParseOrFail(".selected-row { background-gradient-end: #2A5ADD; }", "Card.lustre");
+        REQUIRE_TRUE(GlobalSheet.has_value());
+        REQUIRE_TRUE(ComponentSheet.has_value());
+
+        FakeElement Row("selected-row", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Row, StylesheetSet{&*GlobalSheet, &*ComponentSheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.BackgroundGradientStart.has_value());
+        REQUIRE_TRUE(Style.BackgroundGradientEnd.has_value());
+    });
+
     IT("resolves a descendant selector across real ancestors", {
         const auto Sheet = ParseOrFail(R"(
 .card {
