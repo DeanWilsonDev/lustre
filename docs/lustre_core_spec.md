@@ -375,3 +375,5 @@ requires a reference to the application's root widget. This is being added to Ir
   defers that backend, Stage 6.
 - Whether `opacity` (whole-element alpha, distinct from a single color's own alpha channel)
   belongs in v1 — not discussed yet; flagged here rather than silently added or omitted.
+
+<!-- branch-tracking verification marker, will be removed immediately after confirming pharos-proto's FetchContent picks it up on reconfigure without deleting build/_deps -->
