@@ -82,6 +82,14 @@ struct ResolvedStyle {
     std::optional<float>         Gap;
     std::optional<Align>         AlignItems;
     std::optional<ColorTransition> Transition;
+    // A soft rectangular shadow -- color + blur radius, mirroring Penumbra's
+    // own Renderer::DrawDropShadow two-argument shape. Populated as a pair,
+    // same convention as BackgroundGradientStart/BackgroundGradientEnd above:
+    // `box-shadow: <color> <length>` is one shorthand property, and the
+    // resolver only keeps a color with no blur radius (or vice versa) if
+    // that's genuinely all the shorthand supplied.
+    std::optional<Color> ShadowColor;
+    std::optional<float> ShadowBlurRadiusLogical;
 
     // Pseudo-class-scoped overlays — present only if the source rule defined
     // them. Recursive rather than flat fields so a pseudo-class block can in

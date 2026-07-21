@@ -191,6 +191,21 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
         Out.BackgroundGradientStart = ParseColor(Resolved[0]);
     } else if (Prop == "background-gradient-end") {
         Out.BackgroundGradientEnd = ParseColor(Resolved[0]);
+    } else if (Prop == "box-shadow") {
+        // `box-shadow: <color> <length>` -- a single-layer shorthand (see
+        // docs/next_steps.md; no consumer needs CSS's comma-separated
+        // multi-shadow list), color and blur radius in either order.
+        std::optional<Color> ShadowColor;
+        std::optional<float> ShadowBlur;
+        for (const auto& V : Resolved) {
+            if (auto C = ParseColor(V)) {
+                ShadowColor = C;
+            } else if (auto L = ParseLength(V)) {
+                ShadowBlur = L;
+            }
+        }
+        Out.ShadowColor = ShadowColor;
+        Out.ShadowBlurRadiusLogical = ShadowBlur;
     } else if (Prop == "border-color") {
         Out.BorderColor = ParseColor(Resolved[0]);
     } else if (Prop == "border-width") {
@@ -406,6 +421,15 @@ ResolvedStyle Resolver::Resolve(const IStyleTarget& Target, const StylesheetSet&
     if (!Style.BackgroundGradientStart.has_value() || !Style.BackgroundGradientEnd.has_value()) {
         Style.BackgroundGradientStart.reset();
         Style.BackgroundGradientEnd.reset();
+    }
+
+    // Same treatment for `box-shadow`'s color+blur-radius pair -- a
+    // shorthand that only ever supplied one half (e.g. a later cascade
+    // layer overrides just the color) shouldn't hand a backend a shadow
+    // with an unset dimension.
+    if (!Style.ShadowColor.has_value() || !Style.ShadowBlurRadiusLogical.has_value()) {
+        Style.ShadowColor.reset();
+        Style.ShadowBlurRadiusLogical.reset();
     }
 
     return Style;

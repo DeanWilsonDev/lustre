@@ -125,6 +125,42 @@ DESCRIBE("Resolver", {
         REQUIRE_TRUE(Style.BackgroundGradientEnd.has_value());
     });
 
+    IT("resolves a box-shadow color+blur-radius shorthand", {
+        const auto Sheet = ParseOrFail(R"(
+.gradient-button {
+    box-shadow: #000000AA 12px;
+}
+)",
+                                        "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Button("gradient-button", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Button, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.ShadowColor.has_value());
+        REQUIRE_TRUE(Style.ShadowBlurRadiusLogical.has_value());
+        ASSERT_TRUE(Style.ShadowColor->R == 0x00 && Style.ShadowColor->G == 0x00 && Style.ShadowColor->B == 0x00 &&
+                    Style.ShadowColor->A == 0xAA);
+        ASSERT_TRUE(*Style.ShadowBlurRadiusLogical == 12.0F);
+    });
+
+    IT("a lone box-shadow color with no blur radius resolves to neither", {
+        const auto Sheet = ParseOrFail(".gradient-button { box-shadow: #000000AA; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Button("gradient-button", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Button, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_FALSE(Style.ShadowColor.has_value());
+        ASSERT_FALSE(Style.ShadowBlurRadiusLogical.has_value());
+    });
+
     IT("resolves max-width and text-overflow: ellipsis", {
         const auto Sheet = ParseOrFail(R"(
 .inspector-row-value {
