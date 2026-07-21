@@ -1,6 +1,7 @@
 # lustre
 
-> **Status:** Design handoff — no code exists yet.
+> **Status:** Core parser/resolver and an editor LSP exist; runtime hot-reload wiring
+> into Iris is still design-phase (see `docs/lustre_handoff.md` §7's open questions).
 
 Lustre is the styling and animation layer for [Iris](https://github.com/DeanWilsonDev/iris).
 Where `.iris`/`.irisx` files define structure (component composition, the `render { }` element
@@ -34,7 +35,47 @@ that design happens, and where the resulting compiler/resolver will eventually l
 - `docs/` — design docs, decision records, and open questions, following the same pattern
   `iris`'s own `docs/` directory used during its Stage 0 scoping (a handoff doc first, decision
   docs as design questions get resolved).
+- `include/Lustre/`, `src/Lustre/` — the core library: `Tokenizer`/`Parser` (parses one
+  `.lustre` file into the `Ast.h` tree) and `Resolver` (cascade + variable resolution down to
+  `ResolvedStyle`, backend-agnostic).
+- `tools/lustre-lsp/` — a stdio LSP server for `.lustre` files (completion, goto-definition,
+  diagnostics — see `docs/lustre_lsp_decision.md`).
+- `editors/nvim/` — Neovim wiring for `lustre-lsp` and syntax highlighting.
 
 ## Build
 
-Nothing yet — pure design phase.
+Requires CMake 3.24+ and a C++23 compiler. Submodules (`libs/cimmerian`, `libs/amanuensis`)
+must be checked out first if you haven't already:
+
+```sh
+git submodule update --init --recursive
+
+cmake -S . -B build
+cmake --build build -j"$(nproc)"
+```
+
+This builds the `lustre` static library, `lustre_lsp` (the LSP server), and both test
+executables. Run the test suites with:
+
+```sh
+./build/tests/test_lustre
+./build/tools/lustre-lsp/tests/test_lustre_lsp
+```
+
+### Editor setup (Neovim)
+
+1. Build `lustre_lsp` (above) and make sure it's on your `PATH` (e.g. symlink
+   `build/lustre_lsp` into somewhere on `PATH`, or add `build/` to it).
+2. Source both files in `editors/nvim/` from your Neovim config:
+
+   ```lua
+   dofile("/path/to/lustre/editors/nvim/lustre-lsp.lua")
+   dofile("/path/to/lustre/editors/nvim/lustre-treesitter.lua")
+   ```
+3. Install the `css` tree-sitter parser if you don't already have it (`:TSInstall css`) —
+   syntax highlighting for `.lustre` deliberately reuses it rather than a bespoke grammar
+   (`docs/lustre_lsp_decision.md` §2).
+
+Opening a `.lustre` file should then get you diagnostics, completion (property names,
+per-property keyword values, `var(--name)` names in scope), goto-definition on
+`var(--name)` references, and CSS-based syntax highlighting.
