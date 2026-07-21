@@ -75,7 +75,10 @@ properties, strings, numbers, and colors correctly.
 - **Jumping from a `class="card"` string in a `.iris` file straight into `.lustre`'s
   `.card { }`** — the natural editor workflow this was asked for, but the handler for it
   lives in `iris-lsp`'s own `HandleDefinition` (it fires while a `.iris` buffer, not a
-  `.lustre` one, is open), not here. Separate follow-up in the `iris` repo.
+  `.lustre` one, is open), not here. Filed as a follow-up in `iris/docs/next-steps.md`, marked
+  `RESOLVED (2026-07-21)` there — `ClassPropValueAtPosition`/`FindClassSelector`
+  (`iris/tools/iris-lsp/RenderTextHeuristics.h`) implement the text-scan lookup that entry
+  left as an open choice.
 
 ## 5. Dependencies
 

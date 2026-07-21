@@ -1,7 +1,8 @@
 # Lustre Core — Language Specification (v1)
 
-> **Status:** Design spec, no implementation yet. Authoritative over
-> `docs/lustre_handoff.md` and the earlier
+> **Status:** Implemented — `Tokenizer`/`Parser`/`Resolver` (`src/Lustre/`, `include/Lustre/`)
+> and `tools/lustre-lsp/` build against this spec; `Anim`/hot-reload wiring into Iris is still
+> open (§7). Authoritative over `docs/lustre_handoff.md` and the earlier
 > `../fearless-hq/Projects/lustre-stylesheet-language/lustre-design-document.md` draft where
 > they disagree — this document is what a Lustre parser/resolver implementer should build
 > against. `lustre_handoff.md` remains the record of *why* each decision below was made; this
@@ -26,7 +27,7 @@ prop is the only bridge between an Iris element and its Lustre declarations.
    nowhere — never silently dropped from the grammar and never a compile error for existing
    only on paper. Every such gap is recorded as a feature request in the relevant repo (see
    `penumbra-proto/docs/lustre_style_gaps_requirements.md`,
-   `iris/docs/lustre_hotreload_iris_requirements.md`).
+   `iris/docs/next-steps.md`'s "Live-widget root registry, for Lustre's hot-reload" entry).
 3. **Strictly scoped to appearance.** No logic, no conditionals, no data binding, no access to
    props or state. A dynamic look (e.g. a health bar changing color as health drops) is done
    by the host language passing a different `class` value based on state — Lustre defines what
@@ -198,7 +199,7 @@ any backend — see the linked feature-request doc for what would unblock it).
 | Property | Values | Applies to | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `background-color` | `<color>` | any | real | Maps to `BoxStyle::ColorBackground`. |
-| `background-gradient-start` / `background-gradient-end` | `<color>` | any | real | A top-to-bottom two-stop gradient fill, maps to `BoxStyle::GradientTop`/`GradientBottom` (`Box::Draw` prefers these over `background-color` when set — docs/penumbra_iris_lustre_componentization_gaps_requirements.md §2). Both must be set (from either layer, in any rule) or neither applies — a lone `-start` with no `-end` resolves to nothing, not a solid fill. Two plain color properties rather than a `linear-gradient(...)` function: v1's value grammar has no general multi-argument function-call form (`transform: scale(<number>)`'s `CallArgument` is single-argument only), and Penumbra's own `Renderer::DrawGradientRect` is itself only ever a vertical two-stop gradient — no angle, no more than two stops — so a function grammar would be accepting syntax the backend could never honor anyway. |
+| `background-gradient-start` / `background-gradient-end` | `<color>` | any | real | A top-to-bottom two-stop gradient fill, maps to `BoxStyle::GradientTop`/`GradientBottom` (`Box::Draw` prefers these over `background-color` when set — `pharos-proto/docs/penumbra_iris_lustre_componentization_gaps_requirements.md` §2). Both must be set (from either layer, in any rule) or neither applies — a lone `-start` with no `-end` resolves to nothing, not a solid fill. Two plain color properties rather than a `linear-gradient(...)` function: v1's value grammar has no general multi-argument function-call form (`transform: scale(<number>)`'s `CallArgument` is single-argument only), and Penumbra's own `Renderer::DrawGradientRect` is itself only ever a vertical two-stop gradient — no angle, no more than two stops — so a function grammar would be accepting syntax the backend could never honor anyway. |
 | `border-color` | `<color>` | any | real | Maps to `BoxStyle::ColorBorder`. |
 | `border-width` | `<length>` | any | real | Maps to `BoxStyle::BorderWidth`. |
 | `border-radius` | `<length>` | any | real | Single uniform value only — `BoxStyle::BorderRadius` is one float, no CSS per-corner shorthand. |
@@ -337,7 +338,7 @@ both implementation-stage concerns once the resolver itself exists.
 Restyling every mounted widget on a reload (not just the one whose class just changed)
 requires a reference to the application's root widget. This is being added to Iris itself —
 `iris::RegisterRoot(Umbra::IWidget*)`/`iris::GetRoot()`, likely folded into `IrisRuntime` — see
-`iris/docs/lustre_hotreload_iris_requirements.md`.
+`iris/docs/next-steps.md`'s "Live-widget root registry, for Lustre's hot-reload" entry.
 
 ## 6. Error catalogue (starter)
 
@@ -366,7 +367,8 @@ requires a reference to the application's root widget. This is being added to Ir
 - A `:root { font-size: ... }`-style convention for `rem`/`em` (§1.5) — resolvable entirely
   inside Lustre's own resolver, no Iris or Penumbra change implied, just not designed yet.
 - The exact hot-reload file-change-detection mechanism (§5) — tangled up with the broader Iris
-  hot-reload question in `iris/docs/lustre_hotreload_iris_requirements.md`.
+  hot-reload question in `iris/docs/next-steps.md`'s "Live-widget root registry, for Lustre's
+  hot-reload" entry.
 - The precise runtime hook by which a `ClassName` change triggers re-resolution and
   re-application of a widget's style (§5) — an implementation-stage integration point once the
   resolver exists.

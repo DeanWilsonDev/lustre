@@ -1,9 +1,11 @@
 # Lustre — Design Handoff
 
-> **Status:** Design handoff — no Lustre code exists yet. **Superseded as the language
-> reference** by `docs/lustre_core_spec.md` (v1), written once every decision below was
-> resolved — where the two disagree, the spec wins. This document remains the record of *why*
-> each decision was made; the spec is *what* was decided.
+> **Status:** Historical design-handoff record — written when no Lustre code existed yet.
+> **Superseded as the language reference** by `docs/lustre_core_spec.md` (v1), written once
+> every decision below was resolved — where the two disagree, the spec wins. This document
+> remains the record of *why* each decision was made; the spec is *what* was decided. Code now
+> exists (`src/Lustre/`, `tools/lustre-lsp/` — see the top-level `README.md`); this document is
+> not updated to track that, by design.
 > **Scope:** Scoping decisions for Lustre, the styling/animation layer for Iris
 > (`../iris`), reconciled against the current, post-pivot state of Iris and the real
 > capabilities of Penumbra (`../penumbra-proto`) as its first backend.
@@ -27,8 +29,9 @@ the `<Image>` decode-from-path gap and the `IWidgetLifecycle` gap — both flagg
 landed). Lustre specs the full language it should eventually be, not just what today's
 backend happens to support. Where a backend can't yet back a Lustre feature, that feature is
 **stubbed, not silently dropped and not a compile error** — and a feature-request doc is
-filed in the relevant repo. Three are filed alongside this one:
-`iris/docs/lustre_hotreload_iris_requirements.md`,
+filed in the relevant repo. Two are filed alongside this one:
+`iris/docs/next-steps.md`'s "Live-widget root registry, for Lustre's hot-reload" entry (the
+requirements doc it was originally filed as has since been coalesced into that file),
 `penumbra-proto/docs/lustre_style_gaps_requirements.md`.
 
 ## 2. What Iris Core already fixes (Lustre must live within these)
@@ -210,7 +213,8 @@ scripting language later), and that future host will need real hot-reload of com
 itself, not just styling data. Lustre's hot-reload is scoped much narrower than that (styling
 data only, not component logic) but the underlying need — something in the running
 application able to react to a changed file without a full rebuild — is shared. Flagged in
-`iris/docs/lustre_hotreload_iris_requirements.md` rather than solved here.
+`iris/docs/next-steps.md`'s "Live-widget root registry, for Lustre's hot-reload" entry rather
+than solved here.
 
 ### Iris gains root-widget registration, for hot-reload's restyle pass
 
@@ -228,7 +232,8 @@ through, so holding a `Umbra::IWidget*` and handing it back out has no backend-s
 store-a-pointer/expose-a-getter logic. `IrisRuntime` already holds/tracks live widget state the
 same way. Proposed shape: `iris::RegisterRoot(Umbra::IWidget*)`/`iris::GetRoot()`, likely folded
 into `IrisRuntime`, callable by any consuming app right after it builds its tree — see
-`iris/docs/lustre_hotreload_iris_requirements.md` for the full reasoning. Benefit beyond
+`iris/docs/next-steps.md`'s "Live-widget root registry, for Lustre's hot-reload" entry for the
+full reasoning. Benefit beyond
 Lustre: the next cross-cutting concern needing "the whole mounted tree" gets this for free.
 
 ### Lustre stays backend-agnostic; Penumbra mapping lives in `iris-penumbra-backend`
