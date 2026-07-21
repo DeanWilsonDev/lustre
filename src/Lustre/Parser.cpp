@@ -7,7 +7,8 @@ namespace Lustre {
 
 namespace {
 bool IsPrimitiveName(std::string_view Name) {
-    static constexpr std::array<std::string_view, 5> kPrimitives{"frame", "inline", "grid", "image", "text"};
+    static constexpr std::array<std::string_view, 7> kPrimitives{"frame", "inline", "grid",  "image",
+                                                                   "text",  "scroll", "input"};
     for (const auto& P : kPrimitives) {
         if (P == Name) {
             return true;
