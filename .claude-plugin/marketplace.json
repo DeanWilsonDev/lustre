@@ -1,0 +1,14 @@
+{
+  "name": "lustre",
+  "description": "Lustre's own plugin marketplace: the language skill for projects that author Lustre stylesheets.",
+  "owner": {
+    "name": "Dean Wilson"
+  },
+  "plugins": [
+    {
+      "name": "lustre",
+      "source": "./",
+      "description": "Skills for reading and writing Lustre (.lustre) — a declarative, CSS-like stylesheet language for Iris UI components."
+    }
+  ]
+}
