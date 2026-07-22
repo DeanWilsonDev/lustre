@@ -370,4 +370,33 @@ DESCRIBE("Resolver", {
         REQUIRE_TRUE(Style.BackgroundColor.has_value());
         ASSERT_TRUE(Style.BackgroundColor->R == 0xFF); // component-scoped --accent shadows global.lustre's
     });
+
+    IT("reports display: stack applied to a leaf primitive instead of silently resolving it", {
+        const auto Sheet = ParseOrFail(".json-path { display: stack; }", "Toolbar.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Field("json-path", "Input", nullptr, true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Field, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_FALSE(Diagnostics.empty());
+        ASSERT_FALSE(Style.DisplayMode.has_value());
+    });
+
+    IT("still resolves display: stack on a real container", {
+        const auto Sheet = ParseOrFail(".toolbar { display: stack; }", "Toolbar.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Bar("toolbar", "Frame", nullptr, true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Bar, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_TRUE(Style.DisplayMode.has_value());
+        ASSERT_TRUE(*Style.DisplayMode == Display::Stack);
+    });
 });

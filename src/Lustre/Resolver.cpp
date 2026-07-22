@@ -170,8 +170,29 @@ struct FontAccumulator {
     std::optional<float>       SizeLogical;
 };
 
+// §2's container-only properties (`display`, `flex-direction`, `gap`,
+// `align-items`) map to `Box::Layout`/`Box::ChildGap`/`Box::CrossAlignment`,
+// which only exist on Penumbra's `Box` widget. Applying one to a leaf
+// primitive resolves silently today with no feedback (docs/next_steps.md,
+// "`display: stack` silently corrupts leaf widgets") -- a leaf has no `Box`
+// children for `Box::Measure` to recurse into, so it collapses to whatever
+// its content-measurement branch reports instead of laying children out.
+bool IsContainerTag(std::string_view Tag) {
+    static const std::unordered_map<std::string_view, bool> kIsContainer{
+        {"Frame", true}, {"Grid", true}, {"Scroll", true}, {"Inline", true},
+        {"Image", false}, {"Text", false}, {"Input", false}};
+    auto It = kIsContainer.find(Tag);
+    // An unrecognized tag (a backend widget outside Lustre's known set)
+    // can't be judged either way -- stay silent rather than guess.
+    return It == kIsContainer.end() || It->second;
+}
+
+bool IsContainerOnlyProperty(const std::string& Prop) {
+    return Prop == "display" || Prop == "flex-direction" || Prop == "gap" || Prop == "align-items";
+}
+
 void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, ResolvedStyle& Out,
-                       FontAccumulator& Font, std::vector<ResolveDiagnostic>& Diagnostics) {
+                       FontAccumulator& Font, std::string_view TargetTag, std::vector<ResolveDiagnostic>& Diagnostics) {
     std::vector<ValuePart> Resolved;
     Resolved.reserve(Decl.Values.size());
     for (const auto& Raw : Decl.Values) {
@@ -184,6 +205,14 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
     }
 
     const std::string& Prop = Decl.Property;
+
+    if (IsContainerOnlyProperty(Prop) && !TargetTag.empty() && !IsContainerTag(TargetTag)) {
+        Diagnostics.push_back(ResolveDiagnostic{"`" + Prop + "` has no effect on `" + std::string(TargetTag) +
+                                                  "` -- it only applies to containers (`Frame`, `Grid`, `Scroll`, " +
+                                                  "`Inline`), and " + std::string(TargetTag) +
+                                                  " is a leaf with no children to lay out."});
+        return;
+    }
 
     if (Prop == "background-color") {
         Out.BackgroundColor = ParseColor(Resolved[0]);
@@ -300,12 +329,12 @@ ResolvedStyle& OverlayFor(ResolvedStyle& Base, PseudoKind Kind) {
     return **Slot;
 }
 
-void ApplyRuleDeclarations(const Rule& R, const VariableScope& Scope, ResolvedStyle& Out,
+void ApplyRuleDeclarations(const Rule& R, const VariableScope& Scope, ResolvedStyle& Out, std::string_view TargetTag,
                             std::vector<ResolveDiagnostic>& Diagnostics) {
     ResolvedStyle& Target = R.Pseudo ? OverlayFor(Out, *R.Pseudo) : Out;
     FontAccumulator Font;
     for (const auto& Decl : R.Declarations) {
-        ApplyDeclaration(Decl, Scope, Target, Font, Diagnostics);
+        ApplyDeclaration(Decl, Scope, Target, Font, TargetTag, Diagnostics);
     }
     if (Font.Path && Font.SizeLogical) {
         Target.Font = FontRequest{*Font.Path, *Font.SizeLogical};
@@ -385,8 +414,9 @@ void ApplyLayer(const Stylesheet* Sheet, const IStyleTarget& Target, bool Unboun
         return A.R->SourceIndex < B.R->SourceIndex;
     });
 
+    const std::string TargetTag = Target.PrimitiveTag();
     for (const auto& Match : Matches) {
-        ApplyRuleDeclarations(*Match.R, Scope, Out, Diagnostics);
+        ApplyRuleDeclarations(*Match.R, Scope, Out, TargetTag, Diagnostics);
     }
 }
 
