@@ -20,9 +20,9 @@ std::vector<Amanuensis::Value> RunServer(const std::vector<Amanuensis::Value>& R
     for (const auto& Req : Requests) {
         JsonRpc::WriteMessage(In, Req);
     }
-    Amanuensis::Value Exit = Amanuensis::Value::MakeObject();
-    Exit.Insert("jsonrpc", Amanuensis::Value("2.0"));
-    Exit.Insert("method", Amanuensis::Value("exit"));
+    Amanuensis::Value Exit = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Exit, "jsonrpc", Amanuensis::Value("2.0"));
+    Amanuensis::Json::Insert(Exit, "method", Amanuensis::Value("exit"));
     JsonRpc::WriteMessage(In, Exit);
     std::rewind(In);
 
@@ -41,33 +41,33 @@ std::vector<Amanuensis::Value> RunServer(const std::vector<Amanuensis::Value>& R
 }
 
 Amanuensis::Value MakeDidOpen(const std::string& Uri, const std::string& Text) {
-    Amanuensis::Value TextDocument = Amanuensis::Value::MakeObject();
-    TextDocument.Insert("uri", Amanuensis::Value(Uri));
-    TextDocument.Insert("text", Amanuensis::Value(Text));
-    Amanuensis::Value Params = Amanuensis::Value::MakeObject();
-    Params.Insert("textDocument", std::move(TextDocument));
-    Amanuensis::Value Message = Amanuensis::Value::MakeObject();
-    Message.Insert("jsonrpc", Amanuensis::Value("2.0"));
-    Message.Insert("method", Amanuensis::Value("textDocument/didOpen"));
-    Message.Insert("params", std::move(Params));
+    Amanuensis::Value TextDocument = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(TextDocument, "uri", Amanuensis::Value(Uri));
+    Amanuensis::Json::Insert(TextDocument, "text", Amanuensis::Value(Text));
+    Amanuensis::Value Params = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Params, "textDocument", std::move(TextDocument));
+    Amanuensis::Value Message = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::Value("2.0"));
+    Amanuensis::Json::Insert(Message, "method", Amanuensis::Value("textDocument/didOpen"));
+    Amanuensis::Json::Insert(Message, "params", std::move(Params));
     return Message;
 }
 
 Amanuensis::Value MakeRequest(int Id, const std::string& Method, const std::string& Uri, std::uint32_t Line0,
                                 std::uint32_t Character0) {
-    Amanuensis::Value TextDocument = Amanuensis::Value::MakeObject();
-    TextDocument.Insert("uri", Amanuensis::Value(Uri));
-    Amanuensis::Value Position = Amanuensis::Value::MakeObject();
-    Position.Insert("line", Amanuensis::Value(static_cast<long long>(Line0)));
-    Position.Insert("character", Amanuensis::Value(static_cast<long long>(Character0)));
-    Amanuensis::Value Params = Amanuensis::Value::MakeObject();
-    Params.Insert("textDocument", std::move(TextDocument));
-    Params.Insert("position", std::move(Position));
-    Amanuensis::Value Message = Amanuensis::Value::MakeObject();
-    Message.Insert("jsonrpc", Amanuensis::Value("2.0"));
-    Message.Insert("id", Amanuensis::Value(Id));
-    Message.Insert("method", Amanuensis::Value(Method));
-    Message.Insert("params", std::move(Params));
+    Amanuensis::Value TextDocument = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(TextDocument, "uri", Amanuensis::Value(Uri));
+    Amanuensis::Value Position = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Position, "line", Amanuensis::Value(static_cast<long long>(Line0)));
+    Amanuensis::Json::Insert(Position, "character", Amanuensis::Value(static_cast<long long>(Character0)));
+    Amanuensis::Value Params = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Params, "textDocument", std::move(TextDocument));
+    Amanuensis::Json::Insert(Params, "position", std::move(Position));
+    Amanuensis::Value Message = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::Value("2.0"));
+    Amanuensis::Json::Insert(Message, "id", Amanuensis::Value(static_cast<long long>(Id)));
+    Amanuensis::Json::Insert(Message, "method", Amanuensis::Value(Method));
+    Amanuensis::Json::Insert(Message, "params", std::move(Params));
     return Message;
 }
 
@@ -77,9 +77,9 @@ DESCRIBE("Server", {
     IT("replies to initialize with completion and definition capabilities", {
         const auto Responses = RunServer({MakeRequest(1, "initialize", "", 0, 0)});
         REQUIRE_TRUE(!Responses.empty());
-        const auto& Capabilities = Responses[0].Get("result").Get("capabilities");
-        ASSERT_TRUE(Capabilities.Get("definitionProvider").AsBoolean());
-        ASSERT_FALSE(Capabilities.Get("completionProvider").IsNull());
+        const auto& Capabilities = Amanuensis::Json::Get(Amanuensis::Json::Get(Responses[0], "result"), "capabilities");
+        ASSERT_TRUE(Amanuensis::Json::AsBoolean(Amanuensis::Json::Get(Capabilities, "definitionProvider")));
+        ASSERT_FALSE(Amanuensis::Json::IsNull(Amanuensis::Json::Get(Capabilities, "completionProvider")));
     });
 
     IT("publishes a diagnostic for a compound tag+class selector", {
@@ -88,9 +88,10 @@ DESCRIBE("Server", {
 
         bool Found = false;
         for (const auto& Msg : Responses) {
-            if (Msg.Contains("method") && Msg.Get("method").AsString() == "textDocument/publishDiagnostics") {
-                const auto& Diags = Msg.Get("params").Get("diagnostics");
-                Found = Diags.Size() > 0;
+            if (Amanuensis::Json::Contains(Msg, "method") &&
+                Amanuensis::Json::AsString(Amanuensis::Json::Get(Msg, "method")) == "textDocument/publishDiagnostics") {
+                const auto& Diags = Amanuensis::Json::Get(Amanuensis::Json::Get(Msg, "params"), "diagnostics");
+                Found = Amanuensis::Json::Size(Diags) > 0;
             }
         }
         ASSERT_TRUE(Found);
@@ -104,10 +105,11 @@ DESCRIBE("Server", {
         });
 
         REQUIRE_TRUE(Responses.size() >= 2);
-        const auto& Items = Responses.back().Get("result").Get("items");
+        const auto& Items = Amanuensis::Json::Get(Amanuensis::Json::Get(Responses.back(), "result"), "items");
         bool SawBackgroundColor = false;
-        for (std::size_t I = 0; I < Items.Size(); ++I) {
-            if (Items.At(I).Get("label").AsString() == "background-color") {
+        for (std::size_t I = 0; I < Amanuensis::Json::Size(Items); ++I) {
+            if (Amanuensis::Json::AsString(Amanuensis::Json::Get(Amanuensis::Json::At(Items, I), "label")) ==
+                "background-color") {
                 SawBackgroundColor = true;
             }
         }
@@ -127,9 +129,11 @@ DESCRIBE("Server", {
         });
 
         REQUIRE_TRUE(Responses.size() >= 2);
-        const auto& Result = Responses.back().Get("result");
-        REQUIRE_TRUE(!Result.IsNull());
-        ASSERT_EQUAL(static_cast<std::uint32_t>(Result.Get("range").Get("start").Get("line").AsInteger()),
+        const auto& Result = Amanuensis::Json::Get(Responses.back(), "result");
+        REQUIRE_TRUE(!Amanuensis::Json::IsNull(Result));
+        ASSERT_EQUAL(static_cast<std::uint32_t>(Amanuensis::Json::AsInteger(
+                         Amanuensis::Json::Get(Amanuensis::Json::Get(Amanuensis::Json::Get(Result, "range"), "start"),
+                                                "line"))),
                      static_cast<std::uint32_t>(1)); // 0-based line 1 == source line 2
     });
 });
