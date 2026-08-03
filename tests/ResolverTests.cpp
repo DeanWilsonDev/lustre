@@ -399,4 +399,33 @@ DESCRIBE("Resolver", {
         REQUIRE_TRUE(Style.DisplayMode.has_value());
         ASSERT_TRUE(*Style.DisplayMode == Display::Stack);
     });
+
+    IT("resolves justify-content: space-between on a container", {
+        const auto Sheet = ParseOrFail(".three-zone-row { justify-content: space-between; }", "ThreeZoneRow.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Row("three-zone-row", "Frame", nullptr, true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Row, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_TRUE(Style.JustifyContent.has_value());
+        ASSERT_TRUE(*Style.JustifyContent == Justify::SpaceBetween);
+    });
+
+    IT("reports justify-content applied to a leaf primitive instead of silently resolving it", {
+        const auto Sheet = ParseOrFail(".json-path { justify-content: center; }", "Toolbar.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Field("json-path", "Input", nullptr, true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Field, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_FALSE(Diagnostics.empty());
+        ASSERT_FALSE(Style.JustifyContent.has_value());
+    });
 });

@@ -47,6 +47,11 @@ struct ColorTransition {
 enum class Display { Stack, Inline };
 enum class FlexDirection { Row, Column };
 enum class Align { Start, Center, End, Stretch };
+// Main-axis distribution, parallel to Align's cross-axis alignment above --
+// CSS's justify-content, scoped to the four keyword values a known consumer
+// (pharos-proto's hand-rolled `ThreeZoneRow`) actually needs. No `SpaceAround`/
+// `SpaceEvenly`: not requested by anything, see docs/next_steps.md.
+enum class Justify { Start, Center, End, SpaceBetween };
 // docs/penumbra_iris_lustre_componentization_gaps_requirements.md's
 // InspectorRow migration finding: Label has no truncation concept at all,
 // so a long value can overflow instead of clipping. Only meaningful paired
@@ -81,6 +86,7 @@ struct ResolvedStyle {
     std::optional<FlexDirection> FlexDirectionMode;
     std::optional<float>         Gap;
     std::optional<Align>         AlignItems;
+    std::optional<Justify>       JustifyContent;
     std::optional<ColorTransition> Transition;
     // A soft rectangular shadow -- color + blur radius, mirroring Penumbra's
     // own Renderer::DrawDropShadow two-argument shape. Populated as a pair,

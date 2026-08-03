@@ -171,8 +171,8 @@ struct FontAccumulator {
 };
 
 // §2's container-only properties (`display`, `flex-direction`, `gap`,
-// `align-items`) map to `Box::Layout`/`Box::ChildGap`/`Box::CrossAlignment`,
-// which only exist on Penumbra's `Box` widget. Applying one to a leaf
+// `align-items`, `justify-content`) map to `Box::Layout`/`Box::ChildGap`/
+// `Box::CrossAlignment`, which only exist on Penumbra's `Box` widget. Applying one to a leaf
 // primitive resolves silently today with no feedback (docs/next_steps.md,
 // "`display: stack` silently corrupts leaf widgets") -- a leaf has no `Box`
 // children for `Box::Measure` to recurse into, so it collapses to whatever
@@ -188,7 +188,8 @@ bool IsContainerTag(std::string_view Tag) {
 }
 
 bool IsContainerOnlyProperty(const std::string& Prop) {
-    return Prop == "display" || Prop == "flex-direction" || Prop == "gap" || Prop == "align-items";
+    return Prop == "display" || Prop == "flex-direction" || Prop == "gap" || Prop == "align-items" ||
+           Prop == "justify-content";
 }
 
 void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, ResolvedStyle& Out,
@@ -278,6 +279,18 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
             auto It = kAligns.find(*Resolved[0].Literal);
             if (It != kAligns.end()) {
                 Out.AlignItems = It->second;
+            }
+        }
+    } else if (Prop == "justify-content") {
+        static const std::unordered_map<std::string, Justify> kJustify{
+            {"start", Justify::Start},
+            {"center", Justify::Center},
+            {"end", Justify::End},
+            {"space-between", Justify::SpaceBetween}};
+        if (Resolved[0].Literal) {
+            auto It = kJustify.find(*Resolved[0].Literal);
+            if (It != kJustify.end()) {
+                Out.JustifyContent = It->second;
             }
         }
     } else if (Prop == "width") {
