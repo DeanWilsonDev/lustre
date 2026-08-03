@@ -73,7 +73,8 @@ add_executable(test_lustre
     tests/TestMain.cpp
     tests/TokenizerTests.cpp
     tests/ParserTests.cpp
-    tests/ResolverTests.cpp)
+    tests/ResolverTests.cpp
+    tests/InheritanceTests.cpp)
 
 target_link_libraries(test_lustre PRIVATE lustre cimmerian)
 set_target_properties(test_lustre PROPERTIES

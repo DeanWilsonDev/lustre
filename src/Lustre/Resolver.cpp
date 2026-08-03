@@ -433,7 +433,93 @@ void ApplyLayer(const Stylesheet* Sheet, const IStyleTarget& Target, bool Unboun
     }
 }
 
+// Copies every property Overlay actually set into Base, leaving anything Overlay didn't
+// touch as Base already had it -- the merge direction §1.3's two-layer cascade needs
+// (component overrides global for anything both define). A full field-by-field
+// enumeration rather than a struct-copy so a property Overlay never mentions can't
+// clobber one Base already resolved from the other layer. New ResolvedStyle fields need
+// adding here explicitly -- there's no way to catch a forgotten one at compile time.
+void MergeCascadeInto(ResolvedStyle& Base, const ResolvedStyle& Overlay) {
+    if (Overlay.BackgroundColor) Base.BackgroundColor = Overlay.BackgroundColor;
+    if (Overlay.BackgroundGradientStart) Base.BackgroundGradientStart = Overlay.BackgroundGradientStart;
+    if (Overlay.BackgroundGradientEnd) Base.BackgroundGradientEnd = Overlay.BackgroundGradientEnd;
+    if (Overlay.BorderColor) Base.BorderColor = Overlay.BorderColor;
+    if (Overlay.BorderWidth) Base.BorderWidth = Overlay.BorderWidth;
+    if (Overlay.BorderRadius) Base.BorderRadius = Overlay.BorderRadius;
+    if (Overlay.Padding) Base.Padding = Overlay.Padding;
+    if (Overlay.Margin) Base.Margin = Overlay.Margin;
+    if (Overlay.TextColor) Base.TextColor = Overlay.TextColor;
+    if (Overlay.Font) Base.Font = Overlay.Font;
+    if (Overlay.DisplayMode) Base.DisplayMode = Overlay.DisplayMode;
+    if (Overlay.FlexDirectionMode) Base.FlexDirectionMode = Overlay.FlexDirectionMode;
+    if (Overlay.Gap) Base.Gap = Overlay.Gap;
+    if (Overlay.AlignItems) Base.AlignItems = Overlay.AlignItems;
+    if (Overlay.JustifyContent) Base.JustifyContent = Overlay.JustifyContent;
+    if (Overlay.Transition) Base.Transition = Overlay.Transition;
+    if (Overlay.ShadowColor) Base.ShadowColor = Overlay.ShadowColor;
+    if (Overlay.ShadowBlurRadiusLogical) Base.ShadowBlurRadiusLogical = Overlay.ShadowBlurRadiusLogical;
+    if (Overlay.WidthLogical) Base.WidthLogical = Overlay.WidthLogical;
+    if (Overlay.HeightLogical) Base.HeightLogical = Overlay.HeightLogical;
+    if (Overlay.MaxWidthLogical) Base.MaxWidthLogical = Overlay.MaxWidthLogical;
+    if (Overlay.TextOverflowMode) Base.TextOverflowMode = Overlay.TextOverflowMode;
+    if (Overlay.TransformScale) Base.TransformScale = Overlay.TransformScale;
+
+    auto MergeOverlayBlock = [](std::shared_ptr<ResolvedStyle>&       BaseBlock,
+                                 const std::shared_ptr<ResolvedStyle>& OverlayBlock) {
+        if (!OverlayBlock) {
+            return;
+        }
+        if (!BaseBlock) {
+            BaseBlock = std::make_shared<ResolvedStyle>();
+        }
+        MergeCascadeInto(*BaseBlock, *OverlayBlock);
+    };
+    MergeOverlayBlock(Base.Hover, Overlay.Hover);
+    MergeOverlayBlock(Base.Active, Overlay.Active);
+    MergeOverlayBlock(Base.Disabled, Overlay.Disabled);
+}
+
+// §1.3's two-layer cascade, composed correctly in one call: global.lustre Unbounded (it has
+// no "own subtree" to be bounded by), the component's own file bounded to Target's own
+// component root. Resolver::Resolve() alone can't express differing Unbounded per layer in
+// a single call, so this calls it twice (one layer populated at a time) and merges.
+ResolvedStyle ResolveCascadedLayers(const IStyleTarget& Target, const StylesheetSet& Sheets,
+                                     std::vector<ResolveDiagnostic>& Diagnostics) {
+    static const Resolver LayerResolver;
+    ResolvedStyle Style;
+    if (Sheets.Global) {
+        MergeCascadeInto(Style, LayerResolver.Resolve(Target, StylesheetSet{Sheets.Global, nullptr},
+                                                        /*Unbounded=*/true, Diagnostics));
+    }
+    if (Sheets.Component) {
+        MergeCascadeInto(Style, LayerResolver.Resolve(Target, StylesheetSet{nullptr, Sheets.Component},
+                                                        /*Unbounded=*/false, Diagnostics));
+    }
+    return Style;
+}
+
 } // namespace
+
+ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Sheets,
+                            std::vector<ResolveDiagnostic>& OutDiagnostics) {
+    ResolvedStyle Style = ResolveCascadedLayers(Target, Sheets, OutDiagnostics);
+
+    // §1.7: color/font inheritance -- only walk up for whichever of the two is still unset
+    // after this element's own cascade, and only as far as an ancestor actually exists.
+    // Deliberately not bounded by IsComponentRoot() (see §1.7's own note on Resolver.h) --
+    // real CSS inheritance has no concept of "component," only DOM ancestry.
+    if ((!Style.TextColor || !Style.Font) && Target.Parent() != nullptr) {
+        const ResolvedStyle Ancestor = ResolveStyle(*Target.Parent(), Sheets, OutDiagnostics);
+        if (!Style.TextColor) {
+            Style.TextColor = Ancestor.TextColor;
+        }
+        if (!Style.Font) {
+            Style.Font = Ancestor.Font;
+        }
+    }
+
+    return Style;
+}
 
 std::string_view PrimitiveTagForSelector(std::string_view LustreSelectorName) {
     static const std::unordered_map<std::string_view, std::string_view> kMapping{

@@ -190,6 +190,41 @@ There is no third tier, no `!important`, and no cross-component override beyond 
 
 `/* ... */`, matching CSS. No line-comment form, consistent with CSS convention.
 
+### 1.7 Inheritance
+
+Exactly two properties inherit, matching CSS's own two classic inherited properties:
+`color` and `font-family`/`font-size` (combined, per §2, into one `font` concept in the
+IR). Every other property in §2 — `background-color`, the border/padding/margin group,
+gradients, `box-shadow`, `display`/`flex-direction`/`gap`/`align-items`, `width`/`height`,
+`max-width`/`text-overflow`, `transform`, `transition` — is **not** inherited, matching
+real CSS.
+
+If an element sets `color`/`font-family`/`font-size` itself (from either cascade layer,
+§1.3), that value wins outright — no ancestor is even consulted. Only when an element
+doesn't set one of these itself does resolution walk up to the nearest ancestor that does,
+using that ancestor's own fully-cascaded value (both layers already composed for that
+ancestor, same as for the original element). An ancestor's own inherited value (rather
+than one it set directly) can itself be passed further down — inheritance chains through
+any number of "doesn't set it, inherits it too" elements before reaching one that does.
+
+**Crosses component boundaries.** §1.2's component-boundary rule ("a nested/descendant
+selector cannot reach into a child component's internals") governs *selector* reach only.
+Inheritance is a different mechanism — value propagation down an already-matched tree, not
+selector matching — and real CSS/DOM inheritance has no notion of "component" at all: an
+app's root layout setting `color` once reaches text inside a component nested arbitrarily
+deep within it, the same way it would in a browser. So the inheritance walk climbs every
+real ancestor, never stopping at a component root the way `IStyleTarget::IsComponentRoot()`
+bounds descendant-selector matching.
+
+**Pseudo-class overlays never participate.** `:hover`/`:active`/`:disabled` blocks (§2's
+"Pseudo-class-scoped variants") are resolved once, statically, per element — Lustre has no
+live per-frame recomputation of a widget's actual runtime interaction state, so a parent's
+`:hover { color: ... }` can't dynamically flow into a child's own `:hover` the way real CSS
+inheritance would (real CSS recomputes inherited values whenever the ancestor's own
+computed value changes, including from a state change). Only the base (non-pseudo) value
+inherits; a child's own `Hover`/`Active`/`Disabled` overlay is entirely unaffected by
+inheritance, whether or not the child's base value was itself inherited.
+
 ## 2. Property reference
 
 One entry per property. **Status** is `real` (a real backend field exists and this maps to it
@@ -205,9 +240,9 @@ any backend — see the linked feature-request doc for what would unblock it).
 | `border-radius` | `<length>` | any | real | Single uniform value only — `BoxStyle::BorderRadius` is one float, no CSS per-corner shorthand. |
 | `padding` | 1–4 `<length>` (CSS shorthand) | any | real | Maps to `BoxStyle::Padding` (`EdgeInsets`). |
 | `margin` | 1–4 `<length>` (CSS shorthand) | any | real | Maps to `BoxStyle::Margin` (`EdgeInsets`). |
-| `color` | `<color>` | `text` (or a class applied to `<Text>`) | real | Maps to `Label::ColorText`. |
-| `font-family` | `var(--name)` resolving to a font path string | `text` | real | Combines with `font-size` into a font-request key — see below. |
-| `font-size` | `<length>` | `text` | real | Combines with `font-family`; changing either requests a different `FontHandle`, not a live field mutation. Resolver caches by `(path, size)`. |
+| `color` | `<color>` | `text` (or a class applied to `<Text>`) | real | Maps to `Label::ColorText`. **Inherited** (§1.7) — an element that doesn't set this itself picks up the nearest ancestor's value. |
+| `font-family` | `var(--name)` resolving to a font path string | `text` | real | Combines with `font-size` into a font-request key — see below. **Inherited** (§1.7), as a combined `font` value. |
+| `font-size` | `<length>` | `text` | real | Combines with `font-family`; changing either requests a different `FontHandle`, not a live field mutation. Resolver caches by `(path, size)`. **Inherited** (§1.7), as a combined `font` value. |
 | `display` | `stack` \| `inline` | any container | real | Maps to `Box::Layout` (`None`/a stack mode). |
 | `flex-direction` | `row` \| `column` | any container with `display: stack` | real | Maps to `Box::Layout` (`HorizontalStack`/`VerticalStack`). |
 | `gap` | `<length>` | any container | real | Maps to `Box::ChildGap`. |
