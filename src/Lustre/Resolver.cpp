@@ -433,68 +433,54 @@ void ApplyLayer(const Stylesheet* Sheet, const IStyleTarget& Target, bool Unboun
     }
 }
 
-// Copies every property Overlay actually set into Base, leaving anything Overlay didn't
-// touch as Base already had it -- the merge direction §1.3's two-layer cascade needs
-// (component overrides global for anything both define). A full field-by-field
-// enumeration rather than a struct-copy so a property Overlay never mentions can't
-// clobber one Base already resolved from the other layer. New ResolvedStyle fields need
-// adding here explicitly -- there's no way to catch a forgotten one at compile time.
-void MergeCascadeInto(ResolvedStyle& Base, const ResolvedStyle& Overlay) {
-    if (Overlay.BackgroundColor) Base.BackgroundColor = Overlay.BackgroundColor;
-    if (Overlay.BackgroundGradientStart) Base.BackgroundGradientStart = Overlay.BackgroundGradientStart;
-    if (Overlay.BackgroundGradientEnd) Base.BackgroundGradientEnd = Overlay.BackgroundGradientEnd;
-    if (Overlay.BorderColor) Base.BorderColor = Overlay.BorderColor;
-    if (Overlay.BorderWidth) Base.BorderWidth = Overlay.BorderWidth;
-    if (Overlay.BorderRadius) Base.BorderRadius = Overlay.BorderRadius;
-    if (Overlay.Padding) Base.Padding = Overlay.Padding;
-    if (Overlay.Margin) Base.Margin = Overlay.Margin;
-    if (Overlay.TextColor) Base.TextColor = Overlay.TextColor;
-    if (Overlay.Font) Base.Font = Overlay.Font;
-    if (Overlay.DisplayMode) Base.DisplayMode = Overlay.DisplayMode;
-    if (Overlay.FlexDirectionMode) Base.FlexDirectionMode = Overlay.FlexDirectionMode;
-    if (Overlay.Gap) Base.Gap = Overlay.Gap;
-    if (Overlay.AlignItems) Base.AlignItems = Overlay.AlignItems;
-    if (Overlay.JustifyContent) Base.JustifyContent = Overlay.JustifyContent;
-    if (Overlay.Transition) Base.Transition = Overlay.Transition;
-    if (Overlay.ShadowColor) Base.ShadowColor = Overlay.ShadowColor;
-    if (Overlay.ShadowBlurRadiusLogical) Base.ShadowBlurRadiusLogical = Overlay.ShadowBlurRadiusLogical;
-    if (Overlay.WidthLogical) Base.WidthLogical = Overlay.WidthLogical;
-    if (Overlay.HeightLogical) Base.HeightLogical = Overlay.HeightLogical;
-    if (Overlay.MaxWidthLogical) Base.MaxWidthLogical = Overlay.MaxWidthLogical;
-    if (Overlay.TextOverflowMode) Base.TextOverflowMode = Overlay.TextOverflowMode;
-    if (Overlay.TransformScale) Base.TransformScale = Overlay.TransformScale;
-
-    auto MergeOverlayBlock = [](std::shared_ptr<ResolvedStyle>&       BaseBlock,
-                                 const std::shared_ptr<ResolvedStyle>& OverlayBlock) {
-        if (!OverlayBlock) {
-            return;
-        }
-        if (!BaseBlock) {
-            BaseBlock = std::make_shared<ResolvedStyle>();
-        }
-        MergeCascadeInto(*BaseBlock, *OverlayBlock);
-    };
-    MergeOverlayBlock(Base.Hover, Overlay.Hover);
-    MergeOverlayBlock(Base.Active, Overlay.Active);
-    MergeOverlayBlock(Base.Disabled, Overlay.Disabled);
+// A gradient needs both stops -- if the cascade (across both layers, and possibly several
+// rules within a layer) only ever supplied one half, treat it as unset rather than handing
+// a backend a start color with no end (or vice versa). Same treatment for `box-shadow`'s
+// color+blur-radius pair. Factored out so Resolver::Resolve() and ResolveCascadedLayers
+// below (which now applies both layers directly rather than routing through Resolve(),
+// see that function's own comment) can't drift on this behavior.
+void FinalizePairedProperties(ResolvedStyle& Style) {
+    if (!Style.BackgroundGradientStart.has_value() || !Style.BackgroundGradientEnd.has_value()) {
+        Style.BackgroundGradientStart.reset();
+        Style.BackgroundGradientEnd.reset();
+    }
+    if (!Style.ShadowColor.has_value() || !Style.ShadowBlurRadiusLogical.has_value()) {
+        Style.ShadowColor.reset();
+        Style.ShadowBlurRadiusLogical.reset();
+    }
 }
 
 // §1.3's two-layer cascade, composed correctly in one call: global.lustre Unbounded (it has
 // no "own subtree" to be bounded by), the component's own file bounded to Target's own
 // component root. Resolver::Resolve() alone can't express differing Unbounded per layer in
-// a single call, so this calls it twice (one layer populated at a time) and merges.
+// a single call, so this applies each layer's own rules directly (mirroring Resolve()'s own
+// body, just with a per-layer Unbounded) instead of routing through it.
+//
+// BUG FIXED 2026-08-03 (docs/next_steps.md): this used to call Resolver::Resolve() twice,
+// once per layer, each time handing it a StylesheetSet with only *that* layer's Stylesheet*
+// populated (the other left nullptr), then merge the two independently-produced
+// ResolvedStyles. Resolve() builds its VariableScope from whichever Sheets it's actually
+// given (line ~536 below) -- so that isolated the variable scope per layer too, not just
+// which sheet's selectors got matched. A component-layer declaration referencing a variable
+// declared only in global.lustre's own :root (the entire point of §1.3/§1.4's two-layer
+// split) silently failed to resolve: the ResolveVariableRef lookup missed, the whole
+// declaration was dropped, and the property came back unset -- not wrong, just as if never
+// written. Fixed by building the VariableScope once from the *full*, un-isolated Sheets
+// (both members, exactly as the caller passed them in) and reusing it for both layers' own
+// rule-application passes -- a variable's visibility is a property of the whole cascade
+// (§1.4: "a component-scoped --variable shadows a same-named global one"), not of which
+// single sheet's selectors a given pass happens to be matching. This also means the two
+// layers now write directly onto one shared ResolvedStyle in cascade order (Global then
+// Component, matching Resolve()'s own priority), so MergeCascadeInto's separate-then-merge
+// step is no longer needed at all.
 ResolvedStyle ResolveCascadedLayers(const IStyleTarget& Target, const StylesheetSet& Sheets,
                                      std::vector<ResolveDiagnostic>& Diagnostics) {
-    static const Resolver LayerResolver;
+    const VariableScope Scope = BuildVariableScope(Sheets.Global, Sheets.Component);
+
     ResolvedStyle Style;
-    if (Sheets.Global) {
-        MergeCascadeInto(Style, LayerResolver.Resolve(Target, StylesheetSet{Sheets.Global, nullptr},
-                                                        /*Unbounded=*/true, Diagnostics));
-    }
-    if (Sheets.Component) {
-        MergeCascadeInto(Style, LayerResolver.Resolve(Target, StylesheetSet{nullptr, Sheets.Component},
-                                                        /*Unbounded=*/false, Diagnostics));
-    }
+    ApplyLayer(Sheets.Global, Target, /*Unbounded=*/true, Scope, Style, Diagnostics);
+    ApplyLayer(Sheets.Component, Target, /*Unbounded=*/false, Scope, Style, Diagnostics);
+    FinalizePairedProperties(Style);
     return Style;
 }
 
@@ -541,26 +527,7 @@ ResolvedStyle Resolver::Resolve(const IStyleTarget& Target, const StylesheetSet&
     // depth on either side.
     ApplyLayer(Sheets.Global, Target, Unbounded, Scope, Style, OutDiagnostics);
     ApplyLayer(Sheets.Component, Target, Unbounded, Scope, Style, OutDiagnostics);
-
-    // A gradient needs both stops -- if the cascade (across both layers, and
-    // possibly several rules within a layer) only ever supplied one half,
-    // treat it as unset rather than handing a backend a start color with no
-    // end (or vice versa). Checked once at the end rather than per-
-    // declaration since either half can come from either layer.
-    if (!Style.BackgroundGradientStart.has_value() || !Style.BackgroundGradientEnd.has_value()) {
-        Style.BackgroundGradientStart.reset();
-        Style.BackgroundGradientEnd.reset();
-    }
-
-    // Same treatment for `box-shadow`'s color+blur-radius pair -- a
-    // shorthand that only ever supplied one half (e.g. a later cascade
-    // layer overrides just the color) shouldn't hand a backend a shadow
-    // with an unset dimension.
-    if (!Style.ShadowColor.has_value() || !Style.ShadowBlurRadiusLogical.has_value()) {
-        Style.ShadowColor.reset();
-        Style.ShadowBlurRadiusLogical.reset();
-    }
-
+    FinalizePairedProperties(Style);
     return Style;
 }
 

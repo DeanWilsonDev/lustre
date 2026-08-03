@@ -12,6 +12,80 @@
 
 _None open right now._
 
+**BUG, fixed 2026-08-03: `ResolveCascadedLayers` built each layer's variable scope from
+only that layer's own sheet**, so a component-layer `var(--x)` referencing a Global-only
+`--x` never resolved. Found while `pharos-proto` updated its dependency pins the same day
+(bumping to pick up `justify-content` and the `color`/`font` inheritance work below) — not
+a new gap introduced by either of those: this composition shape
+(`ResolveCascadedLayers` calling `Resolver::Resolve()` twice, once per layer, each with the
+other sheet passed as `nullptr`) is exactly what `penumbra-ui-backend`'s old hand-rolled
+`StyleResolution.cpp::ResolveStyle`/`MergeInto` already did before the "Add CSS-style
+color/font inheritance (§1.7)" commit (`7779d94`) moved that composition into this repo —
+this bug predates that commit entirely and was latent in `penumbra-ui-backend` the whole
+time the two-layer cascade existed.
+
+**Symptom:** any declaration in a *component*-layer `.lustre` file that references a
+variable declared only in the *global* layer's `:root` block silently failed to resolve —
+the property was dropped entirely (as if never written), not applied with some wrong
+value.
+
+**Root cause**, confirmed by direct instrumentation, not guessed: `ResolveCascadedLayers`
+called `Resolver::Resolve()` twice, each time handing it a `StylesheetSet` with only *one*
+of `{Global, Component}` populated. `Resolve()` itself builds
+`const VariableScope Scope = BuildVariableScope(Sheets.Global, Sheets.Component);` from
+the *isolated* `Sheets` it was just handed for that one call, not the original caller's
+full pair. So while resolving the Component layer, `BuildVariableScope(Global=nullptr,
+Component=Sheets.Component)` built a scope containing only the component file's own
+`--variables`; a Global-only variable was invisible to that pass entirely.
+`ResolveVariableRef`'s lookup missed, a `ResolveDiagnostic` ("Undefined variable...") was
+recorded, and `ApplyDeclaration` received an empty `Resolved` vector for that value and
+returned before setting anything on `Out`.
+
+**Confirmed empirically** before fixing: instrumented `pharos-proto`'s vendored build to
+print the `ResolvedStyle` obtained for a `Frame class="toolbar"` / `Text class=
+"toolbar-label"` pair, where `Toolbar.lustre` references `var(--color-panel-background)`/
+`var(--color-text-primary)`, both declared only in a separate `global.lustre`'s `:root`
+block. Every property came back unset (`BackgroundColor`/`BorderColor`/`TextColor`/
+`Padding` all `nullopt`) even though both `Global`/`Component` `Stylesheet*` pointers were
+valid and non-null.
+
+**Fix** (`src/Lustre/Resolver.cpp`): `ResolveCascadedLayers` no longer routes through
+`Resolver::Resolve()`/`MergeCascadeInto` at all. It now builds the `VariableScope` *once*
+from the full, un-isolated `Sheets` (both members exactly as the caller passed them in),
+then calls `ApplyLayer` directly for each layer with that shared scope and each layer's
+own `Unbounded` value (`true` for Global, `false` for Component), writing both layers'
+declarations onto one shared `ResolvedStyle` in cascade order — matching how
+`Resolver::Resolve()`'s own body already behaved when given both sheets in a single call.
+`MergeCascadeInto` (the old separate-then-merge step, only reachable from this one call
+site) is gone entirely; the gradient/box-shadow pair-completion check it used to help
+enforce was factored into a small shared `FinalizePairedProperties` helper, now called by
+both `Resolver::Resolve()` and `ResolveCascadedLayers` so the two paths can't drift.
+`Resolver::Resolve()`'s own public single-call behavior/signature is unchanged (it was
+never buggy — every existing test calling it directly already passed both sheets in one
+call, which is why this slipped past `tests/ResolverTests.cpp`'s existing coverage
+entirely).
+
+New regression coverage: `tests/InheritanceTests.cpp`'s "a component-layer declaration can
+reference a variable declared only in the global layer" (through `ResolveStyle()`, the
+public entry point that calls `ResolveCascadedLayers`) — verified it fails without the fix
+(reverted the fix locally, confirmed red) and passes with it. Full suite: `test_lustre`
+42/42, `test_lustre_lsp` 15/15.
+
+**Practical impact this fixes**: `pharos-proto`'s `global.lustre --variables` bridge (all
+12 of its component `.lustre` files using `var(--name)` referencing a shared
+`global.lustre`) was non-functional across that whole app until this landed — every
+migrated file's colors/spacing silently resolved to nothing (`Label`s rendered fully
+transparent `{0,0,0,0}` text, `Box`es got no background/border) instead of the intended
+theme values. Went unnoticed in that repo's own prior screenshot verification because a
+fully-transparent panel over a dark window background still looks plausibly
+"dark-themed" at a glance, and `penumbra-ui-backend`'s debug-mode
+`ClassedNodes>0 && ResolvedNodes==0` diagnostic (meant to catch exactly this class of
+"resolved nothing" bug) doesn't fire because *some* node in a typical tree usually
+resolves at least one non-`var()`-dependent property, keeping the tree-wide count above
+zero even when individual nodes resolve nothing at all. `pharos-proto` needs no code
+change of its own for this — just picking up the new `lustre` commit through its existing
+`main`-tracking `FetchContent` pin.
+
 `justify-content` (main-axis distribution — `start`/`center`/`end`/`space-between`,
 parallel to `align-items`'s existing cross-axis `Align`) shipped 2026-08-03, closing the
 gap `pharos-proto`'s hand-rolled `ThreeZoneRow` ("left/center/right justify in one row")

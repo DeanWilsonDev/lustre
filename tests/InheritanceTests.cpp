@@ -192,6 +192,30 @@ DESCRIBE("Inheritance (§1.7)", {
         ASSERT_TRUE(Style.TextColor->R == 0xFF); // component layer wins over global, same as Resolver::Resolve()
     });
 
+    IT("a component-layer declaration can reference a variable declared only in the global layer", {
+        // Regression test for a real bug (docs/next_steps.md, 2026-08-03): ResolveStyle's
+        // two-layer composition used to call Resolver::Resolve() once per layer, each time
+        // with the *other* sheet nulled out -- so the component layer's own var() lookups
+        // never saw global.lustre's variables at all, silently dropping any declaration
+        // that referenced one (exactly the pattern every real global.lustre/Component.lustre
+        // pair uses in practice). The test above never caught this because neither layer
+        // there uses var() at all -- this one specifically has the *component* layer
+        // reference a variable declared only in the *global* layer.
+        const auto GlobalSheet = ParseOrFail(":root { --accent: #ABCDEF; }", "global.lustre");
+        const auto ComponentSheet = ParseOrFail(".card { color: var(--accent); }", "Card.lustre");
+        REQUIRE_TRUE(GlobalSheet.has_value());
+        REQUIRE_TRUE(ComponentSheet.has_value());
+
+        FakeElement Card("card", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = ResolveStyle(Card, StylesheetSet{&*GlobalSheet, &*ComponentSheet}, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_TRUE(Style.TextColor.has_value());
+        ASSERT_TRUE(Style.TextColor->R == 0xAB && Style.TextColor->G == 0xCD && Style.TextColor->B == 0xEF);
+    });
+
     IT("global.lustre can still be the source of an inherited value across a component boundary", {
         // Mirrors ResolverTests.cpp's "lets global.lustre reach across component
         // boundaries", but for inheritance rather than selector matching: an
