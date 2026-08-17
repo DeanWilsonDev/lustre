@@ -12,6 +12,18 @@
 
 _None open right now._
 
+**Status note, 2026-08-17 (fleet retirement):** the multi-repo coordination
+experiment (pharos/penumbra/iris/lustre/nyx agents, coordinated via
+`SendMessage` through a "main" pharos-side agent) is being retired so a
+fresh test fleet can be spun up cleanly. This lustre agent read this repo's
+spec and backlog at the start of its session, received the peer roster
+(penumbra/iris/backend/nyx addresses), and stayed on standby the entire
+session — no ask was ever queued for lustre, so no implementation work was
+started and nothing is in-flight. A fresh agent picking this up starts
+clean: the repo was clean and up to date with `origin/main` at commit
+`268a838` for the whole session, and the "None open right now" line above
+was accurate throughout — nothing to resume.
+
 **BUG, fixed 2026-08-03: `ResolveCascadedLayers` built each layer's variable scope from
 only that layer's own sheet**, so a component-layer `var(--x)` referencing a Global-only
 `--x` never resolved. Found while `pharos-proto` updated its dependency pins the same day
