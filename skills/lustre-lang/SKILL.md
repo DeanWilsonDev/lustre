@@ -199,8 +199,16 @@ font-family: ...; }` is accepted without complaint in v1).
 
 ## Things that will bite an agent writing Lustre
 
-- Runtime hot-reload wiring into Iris is still design-phase (core
-  parser/resolver + LSP exist; the live-reload path doesn't yet).
+- **Corrected 2026-09-14** — this used to say "runtime wiring into Iris is still
+  design-phase"; that was stale/wrong. Static resolution *is* wired in and in
+  production use: `penumbra-ui-backend`'s `Lustre/StyleApplier.cpp`/
+  `StyleResolution.cpp`/`StylesheetLoader.cpp` resolve a mounted Iris component's
+  `class` against a real `StylesheetSet` at build/mount time (`pharos-proto`'s
+  `App.irisx`/`InspectorPanel.irisx` etc. do this today, real `.lustre` files,
+  real resolved styles). What's still genuinely open is narrower than the old
+  claim: *hot-reload specifically* — re-resolving styles when a `.lustre` file
+  changes on disk without a full remount/rebuild — doesn't exist yet. Don't
+  conflate "hot-reload not built" with "styling doesn't work."
 - `rem`/`em`, `width`/`height`, and `transform: scale(...)` are parsed but
   **do nothing** in the current backend — don't rely on them for layout.
 - `transition` only animates color, and only with a fixed curve — no easing
