@@ -15,13 +15,24 @@ endif()
 
 # ---------------------------------------------------------------------------
 # Cimmerian — the ecosystem's own BDD-style test framework, vendored as a git
-# submodule the same way `iris` does. Forced to CIMMERIAN_VISUAL_PLATFORM=None
-# *before* add_subdirectory: Cimmerian's own CMakeLists only sets that cache
-# variable if it isn't already set, and its default on Linux is X11, which
-# pulls in find_package(X11 REQUIRED) + libXtst — a dependency this repo's
-# tests have no need for (no screenshot/visual-regression testing here).
+# submodule the same way `iris` does. No CIMMERIAN_VISUAL_PLATFORM/
+# CIMMERIAN_ENABLE_* override needed here (an earlier commit forced
+# CIMMERIAN_VISUAL_PLATFORM to "None" before this add_subdirectory, working
+# around an older vendored Cimmerian that built its visual/snapshot sources
+# unconditionally, defaulting to X11 on Linux and so pulling in
+# find_package(X11 REQUIRED) + libXtst for a capability this repo's tests
+# never used -- and critically, that force-set ran unconditionally as part of
+# processing this file, clobbering CIMMERIAN_VISUAL_PLATFORM even when a
+# consumer fetching this repo alongside iris-proto's own vendored Cimmerian
+# had already set it correctly, since CMake always re-executes this file's
+# statements regardless of add_subdirectory's own internal `if(TARGET
+# cimmerian)` early-return self-guard): the vendored commit now bumped gates
+# all of that behind CIMMERIAN_ENABLE_VISUAL_TESTING/
+# CIMMERIAN_ENABLE_SNAPSHOT_TESTING, each defaulting to
+# CIMMERIAN_IS_ROOT_PROJECT (false here), so both already default off with
+# nothing set, and the removed force-set can no longer clobber a consumer's
+# own choice.
 # ---------------------------------------------------------------------------
-set(CIMMERIAN_VISUAL_PLATFORM "None" CACHE STRING "" FORCE)
 add_subdirectory(libs/cimmerian)
 
 # ---------------------------------------------------------------------------
