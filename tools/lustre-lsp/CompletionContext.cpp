@@ -138,7 +138,8 @@ const std::vector<std::string_view> kPropertyNames{
     "font-family",      "font-size",                   "display",
     "flex-direction",   "gap",                         "align-items",
     "width",            "height",                      "max-width",
-    "text-overflow",    "transform",                   "transition",
+    "text-overflow",    "white-space",                 "transform",
+    "transition",
 };
 
 const std::vector<std::string_view> kPrimitiveSelectorNames{
@@ -163,6 +164,9 @@ std::vector<std::string_view> PropertyValueKeywords(std::string_view Property) {
     }
     if (Property == "text-overflow") {
         return {"clip", "ellipsis"};
+    }
+    if (Property == "white-space") {
+        return {"nowrap", "normal"};
     }
     return {};
 }

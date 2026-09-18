@@ -125,6 +125,9 @@ fallback.
 `font-family`/`font-size`, `display: stack|inline`, `flex-direction:
 row|column`, `gap`, `align-items: start|center|end|stretch`, `max-width`,
 `text-overflow: clip|ellipsis` (needs `max-width` set to take effect),
+`white-space: nowrap|normal` (`normal` word-wraps text across lines to fit
+the box's own width; mutually exclusive with `max-width`/`text-overflow`
+in practice),
 `transition` (color-only, e.g. `background-color 0.2s` — no easing
 keyword), `box-shadow` (color + blur radius only, e.g. `box-shadow:
 #000000AA 12px;` — no multi-layer list).

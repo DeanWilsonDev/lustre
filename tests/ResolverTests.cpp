@@ -211,6 +211,34 @@ DESCRIBE("Resolver", {
         ASSERT_FALSE(Style.TextOverflowMode.has_value());
     });
 
+    IT("resolves white-space: normal", {
+        const auto Sheet = ParseOrFail(".x { white-space: normal; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Text", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.WhiteSpaceMode.has_value());
+        ASSERT_TRUE(*Style.WhiteSpaceMode == WhiteSpace::Normal);
+    });
+
+    IT("resolves white-space: nowrap", {
+        const auto Sheet = ParseOrFail(".x { white-space: nowrap; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Text", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.WhiteSpaceMode.has_value());
+        ASSERT_TRUE(*Style.WhiteSpaceMode == WhiteSpace::Nowrap);
+    });
+
     IT("resolves a descendant selector across real ancestors", {
         const auto Sheet = ParseOrFail(R"(
 .card {

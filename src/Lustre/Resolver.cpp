@@ -305,6 +305,12 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
         } else if (Resolved[0].Literal == "ellipsis") {
             Out.TextOverflowMode = TextOverflow::Ellipsis;
         }
+    } else if (Prop == "white-space") {
+        if (Resolved[0].Literal == "nowrap") {
+            Out.WhiteSpaceMode = WhiteSpace::Nowrap;
+        } else if (Resolved[0].Literal == "normal") {
+            Out.WhiteSpaceMode = WhiteSpace::Normal;
+        }
     } else if (Prop == "transform") {
         if (Resolved[0].Literal == "scale" && Resolved[0].CallArgument) {
             float Value = 0.0F;
