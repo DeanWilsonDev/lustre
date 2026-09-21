@@ -113,10 +113,13 @@ struct ResolvedStyle {
     std::shared_ptr<ResolvedStyle> Active;
     std::shared_ptr<ResolvedStyle> Disabled;
 
-    // Stubbed properties (§2) — carried through so a future backend mapping
-    // has something to consume; no current backend reads these.
+    // `width`/`height` -- no longer stubs: penumbra-ui-backend's LustreStyleApplier copies
+    // these onto any Box's own BoxStyle::WidthLogical/HeightLogical (Styles.h's ">= 0 is an
+    // explicit border-box override" contract, already honored by Measure/Arrange).
     std::optional<float> WidthLogical;
     std::optional<float> HeightLogical;
+    // Still a stub (§2) -- carried through so a future backend mapping has something to
+    // consume; no current backend reads this one.
     std::optional<float> TransformScale;
 
     // `max-width` / `text-overflow` (`text` only) -- unlike `width` above,
