@@ -29,32 +29,32 @@ std::optional<std::string> ReadFile(const std::filesystem::path& Path) {
     return Buffer.str();
 }
 
-Amanuensis::Value MakePosition(std::uint32_t Line, std::uint32_t Column) {
-    Amanuensis::Value Position = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Position, "line", Amanuensis::Value(static_cast<long long>(Line - 1)));
-    Amanuensis::Json::Insert(Position, "character", Amanuensis::Value(static_cast<long long>(Column - 1)));
+Amanuensis::JsonValue MakePosition(std::uint32_t Line, std::uint32_t Column) {
+    Amanuensis::JsonValue Position = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Position, "line", Amanuensis::JsonValue(static_cast<long long>(Line - 1)));
+    Amanuensis::Json::Insert(Position, "character", Amanuensis::JsonValue(static_cast<long long>(Column - 1)));
     return Position;
 }
 
-Amanuensis::Value MakeRange(std::uint32_t Line, std::uint32_t Column) {
-    Amanuensis::Value Range = Amanuensis::Json::MakeObject();
+Amanuensis::JsonValue MakeRange(std::uint32_t Line, std::uint32_t Column) {
+    Amanuensis::JsonValue Range = Amanuensis::Json::MakeObject();
     Amanuensis::Json::Insert(Range, "start", MakePosition(Line, Column));
     Amanuensis::Json::Insert(Range, "end", MakePosition(Line, Column));
     return Range;
 }
 
-std::pair<std::uint32_t, std::uint32_t> PositionFromParams(const Amanuensis::Value& Position) {
+std::pair<std::uint32_t, std::uint32_t> PositionFromParams(const Amanuensis::JsonValue& Position) {
     return {static_cast<std::uint32_t>(Amanuensis::Json::AsInteger(Amanuensis::Json::Get(Position, "line"))) + 1,
             static_cast<std::uint32_t>(Amanuensis::Json::AsInteger(Amanuensis::Json::Get(Position, "character"))) +
                 1};
 }
 
-Amanuensis::Value MakeCompletionItem(const std::string& Label, int Kind, const std::string& Detail = "") {
-    Amanuensis::Value Item = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Item, "label", Amanuensis::Value(Label));
-    Amanuensis::Json::Insert(Item, "kind", Amanuensis::Value(static_cast<long long>(Kind)));
+Amanuensis::JsonValue MakeCompletionItem(const std::string& Label, int Kind, const std::string& Detail = "") {
+    Amanuensis::JsonValue Item = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Item, "label", Amanuensis::JsonValue(Label));
+    Amanuensis::Json::Insert(Item, "kind", Amanuensis::JsonValue(static_cast<long long>(Kind)));
     if (!Detail.empty()) {
-        Amanuensis::Json::Insert(Item, "detail", Amanuensis::Value(Detail));
+        Amanuensis::Json::Insert(Item, "detail", Amanuensis::JsonValue(Detail));
     }
     return Item;
 }
@@ -88,7 +88,7 @@ std::optional<Lustre::Stylesheet> LoadSiblingGlobalSheet(const std::string& Path
 void Server::Run(std::FILE* In, std::FILE* Out) {
     Out_ = Out;
     for (;;) {
-        const std::optional<Amanuensis::Value> Message = JsonRpc::ReadMessage(In);
+        const std::optional<Amanuensis::JsonValue> Message = JsonRpc::ReadMessage(In);
         if (!Message) {
             return;
         }
@@ -102,38 +102,38 @@ void Server::Run(std::FILE* In, std::FILE* Out) {
     }
 }
 
-void Server::Reply(const Amanuensis::Value& Id, Amanuensis::Value Result) {
-    Amanuensis::Value Message = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::Value("2.0"));
+void Server::Reply(const Amanuensis::JsonValue& Id, Amanuensis::JsonValue Result) {
+    Amanuensis::JsonValue Message = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::JsonValue("2.0"));
     Amanuensis::Json::Insert(Message, "id", Id);
     Amanuensis::Json::Insert(Message, "result", std::move(Result));
     JsonRpc::WriteMessage(Out_, Message);
 }
 
-void Server::Notify(const std::string& Method, Amanuensis::Value Params) {
-    Amanuensis::Value Message = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::Value("2.0"));
-    Amanuensis::Json::Insert(Message, "method", Amanuensis::Value(Method));
+void Server::Notify(const std::string& Method, Amanuensis::JsonValue Params) {
+    Amanuensis::JsonValue Message = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::JsonValue("2.0"));
+    Amanuensis::Json::Insert(Message, "method", Amanuensis::JsonValue(Method));
     Amanuensis::Json::Insert(Message, "params", std::move(Params));
     JsonRpc::WriteMessage(Out_, Message);
 }
 
-void Server::HandleMessage(const Amanuensis::Value& Message) {
+void Server::HandleMessage(const Amanuensis::JsonValue& Message) {
     if (!Amanuensis::Json::IsObject(Message) || !Amanuensis::Json::Contains(Message, "method")) {
         return;
     }
     const std::string       Method = Amanuensis::Json::AsString(Amanuensis::Json::Get(Message, "method"));
-    const Amanuensis::Value Params =
-        Amanuensis::Json::Contains(Message, "params") ? Amanuensis::Json::Get(Message, "params") : Amanuensis::Value();
+    const Amanuensis::JsonValue Params =
+        Amanuensis::Json::Contains(Message, "params") ? Amanuensis::Json::Get(Message, "params") : Amanuensis::JsonValue();
     const bool               IsRequest = Amanuensis::Json::Contains(Message, "id");
-    const Amanuensis::Value  Id = IsRequest ? Amanuensis::Json::Get(Message, "id") : Amanuensis::Value();
+    const Amanuensis::JsonValue  Id = IsRequest ? Amanuensis::Json::Get(Message, "id") : Amanuensis::JsonValue();
 
     if (Method == "initialize") {
         HandleInitialize(Id, Params);
     } else if (Method == "initialized" || Method == "$/setTrace" || Method == "workspace/didChangeConfiguration") {
         // Accepted, no action needed.
     } else if (Method == "shutdown") {
-        Reply(Id, Amanuensis::Value());
+        Reply(Id, Amanuensis::JsonValue());
     } else if (Method == "exit") {
         // Handled by Run()'s own loop after this returns.
     } else if (Method == "textDocument/didOpen") {
@@ -147,11 +147,11 @@ void Server::HandleMessage(const Amanuensis::Value& Message) {
     } else if (Method == "textDocument/definition") {
         HandleDefinition(Id, Params);
     } else if (IsRequest) {
-        Amanuensis::Value Error = Amanuensis::Json::MakeObject();
-        Amanuensis::Json::Insert(Error, "code", Amanuensis::Value(static_cast<long long>(-32601)));
-        Amanuensis::Json::Insert(Error, "message", Amanuensis::Value("method not found: " + Method));
-        Amanuensis::Value Response = Amanuensis::Json::MakeObject();
-        Amanuensis::Json::Insert(Response, "jsonrpc", Amanuensis::Value("2.0"));
+        Amanuensis::JsonValue Error = Amanuensis::Json::MakeObject();
+        Amanuensis::Json::Insert(Error, "code", Amanuensis::JsonValue(static_cast<long long>(-32601)));
+        Amanuensis::Json::Insert(Error, "message", Amanuensis::JsonValue("method not found: " + Method));
+        Amanuensis::JsonValue Response = Amanuensis::Json::MakeObject();
+        Amanuensis::Json::Insert(Response, "jsonrpc", Amanuensis::JsonValue("2.0"));
         Amanuensis::Json::Insert(Response, "id", Id);
         Amanuensis::Json::Insert(Response, "error", std::move(Error));
         JsonRpc::WriteMessage(Out_, Response);
@@ -160,39 +160,39 @@ void Server::HandleMessage(const Amanuensis::Value& Message) {
     // fail" guidance for messages a server doesn't recognise.
 }
 
-void Server::HandleInitialize(const Amanuensis::Value& Id, const Amanuensis::Value& /*Params*/) {
-    Amanuensis::Value Completion = Amanuensis::Json::MakeObject();
-    Amanuensis::Value TriggerChars = Amanuensis::Json::MakeArray();
-    Amanuensis::Json::PushBack(TriggerChars, Amanuensis::Value(":"));
-    Amanuensis::Json::PushBack(TriggerChars, Amanuensis::Value("("));
-    Amanuensis::Json::PushBack(TriggerChars, Amanuensis::Value(" "));
-    Amanuensis::Json::PushBack(TriggerChars, Amanuensis::Value("."));
+void Server::HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& /*Params*/) {
+    Amanuensis::JsonValue Completion = Amanuensis::Json::MakeObject();
+    Amanuensis::JsonValue TriggerChars = Amanuensis::Json::MakeArray();
+    Amanuensis::Json::PushBack(TriggerChars, Amanuensis::JsonValue(":"));
+    Amanuensis::Json::PushBack(TriggerChars, Amanuensis::JsonValue("("));
+    Amanuensis::Json::PushBack(TriggerChars, Amanuensis::JsonValue(" "));
+    Amanuensis::Json::PushBack(TriggerChars, Amanuensis::JsonValue("."));
     Amanuensis::Json::Insert(Completion, "triggerCharacters", std::move(TriggerChars));
 
-    Amanuensis::Value Capabilities = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Capabilities, "textDocumentSync", Amanuensis::Value(static_cast<long long>(1))); // Full
+    Amanuensis::JsonValue Capabilities = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Capabilities, "textDocumentSync", Amanuensis::JsonValue(static_cast<long long>(1))); // Full
     Amanuensis::Json::Insert(Capabilities, "completionProvider", std::move(Completion));
-    Amanuensis::Json::Insert(Capabilities, "definitionProvider", Amanuensis::Value(true));
+    Amanuensis::Json::Insert(Capabilities, "definitionProvider", Amanuensis::JsonValue(true));
 
-    Amanuensis::Value ServerInfo = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(ServerInfo, "name", Amanuensis::Value("lustre-lsp"));
-    Amanuensis::Json::Insert(ServerInfo, "version", Amanuensis::Value("0.1.0"));
+    Amanuensis::JsonValue ServerInfo = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(ServerInfo, "name", Amanuensis::JsonValue("lustre-lsp"));
+    Amanuensis::Json::Insert(ServerInfo, "version", Amanuensis::JsonValue("0.1.0"));
 
-    Amanuensis::Value Result = Amanuensis::Json::MakeObject();
+    Amanuensis::JsonValue Result = Amanuensis::Json::MakeObject();
     Amanuensis::Json::Insert(Result, "capabilities", std::move(Capabilities));
     Amanuensis::Json::Insert(Result, "serverInfo", std::move(ServerInfo));
     Reply(Id, std::move(Result));
 }
 
-void Server::HandleDidOpen(const Amanuensis::Value& Params) {
-    const Amanuensis::Value& TextDocument = Amanuensis::Json::Get(Params, "textDocument");
+void Server::HandleDidOpen(const Amanuensis::JsonValue& Params) {
+    const Amanuensis::JsonValue& TextDocument = Amanuensis::Json::Get(Params, "textDocument");
     RebuildDocument(Amanuensis::Json::AsString(Amanuensis::Json::Get(TextDocument, "uri")),
                      Amanuensis::Json::AsString(Amanuensis::Json::Get(TextDocument, "text")));
 }
 
-void Server::HandleDidChange(const Amanuensis::Value& Params) {
-    const Amanuensis::Value& TextDocument = Amanuensis::Json::Get(Params, "textDocument");
-    const Amanuensis::Value& Changes = Amanuensis::Json::Get(Params, "contentChanges");
+void Server::HandleDidChange(const Amanuensis::JsonValue& Params) {
+    const Amanuensis::JsonValue& TextDocument = Amanuensis::Json::Get(Params, "textDocument");
+    const Amanuensis::JsonValue& Changes = Amanuensis::Json::Get(Params, "contentChanges");
     if (Amanuensis::Json::Size(Changes) == 0) {
         return;
     }
@@ -203,7 +203,7 @@ void Server::HandleDidChange(const Amanuensis::Value& Params) {
                          Amanuensis::Json::At(Changes, Amanuensis::Json::Size(Changes) - 1), "text")));
 }
 
-void Server::HandleDidClose(const Amanuensis::Value& Params) {
+void Server::HandleDidClose(const Amanuensis::JsonValue& Params) {
     Documents_.erase(
         Amanuensis::Json::AsString(Amanuensis::Json::Get(Amanuensis::Json::Get(Params, "textDocument"), "uri")));
 }
@@ -221,28 +221,28 @@ void Server::RebuildDocument(const std::string& Uri, std::string Text) {
 }
 
 void Server::PublishDiagnostics(const std::string& Uri, const OpenDocument& Doc) {
-    Amanuensis::Value Diagnostics = Amanuensis::Json::MakeArray();
+    Amanuensis::JsonValue Diagnostics = Amanuensis::Json::MakeArray();
     for (const Lustre::ParseError& Err : Doc.Parsed.Errors) {
-        Amanuensis::Value Diagnostic = Amanuensis::Json::MakeObject();
+        Amanuensis::JsonValue Diagnostic = Amanuensis::Json::MakeObject();
         Amanuensis::Json::Insert(Diagnostic, "range", MakeRange(Err.Location.Line, Err.Location.Column));
-        Amanuensis::Json::Insert(Diagnostic, "severity", Amanuensis::Value(static_cast<long long>(1))); // Error
-        Amanuensis::Json::Insert(Diagnostic, "source", Amanuensis::Value("lustre"));
-        Amanuensis::Json::Insert(Diagnostic, "message", Amanuensis::Value(Err.Message));
+        Amanuensis::Json::Insert(Diagnostic, "severity", Amanuensis::JsonValue(static_cast<long long>(1))); // Error
+        Amanuensis::Json::Insert(Diagnostic, "source", Amanuensis::JsonValue("lustre"));
+        Amanuensis::Json::Insert(Diagnostic, "message", Amanuensis::JsonValue(Err.Message));
         Amanuensis::Json::PushBack(Diagnostics, std::move(Diagnostic));
     }
 
-    Amanuensis::Value Params = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Params, "uri", Amanuensis::Value(Uri));
+    Amanuensis::JsonValue Params = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Params, "uri", Amanuensis::JsonValue(Uri));
     Amanuensis::Json::Insert(Params, "diagnostics", std::move(Diagnostics));
     Notify("textDocument/publishDiagnostics", std::move(Params));
 }
 
-void Server::HandleCompletion(const Amanuensis::Value& Id, const Amanuensis::Value& Params) {
+void Server::HandleCompletion(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params) {
     const std::string Uri =
         Amanuensis::Json::AsString(Amanuensis::Json::Get(Amanuensis::Json::Get(Params, "textDocument"), "uri"));
     const auto [Line, Column] = PositionFromParams(Amanuensis::Json::Get(Params, "position"));
 
-    Amanuensis::Value Items = Amanuensis::Json::MakeArray();
+    Amanuensis::JsonValue Items = Amanuensis::Json::MakeArray();
     const auto DocIt = Documents_.find(Uri);
     if (DocIt != Documents_.end()) {
         const OpenDocument&     Doc = DocIt->second;
@@ -278,27 +278,27 @@ void Server::HandleCompletion(const Amanuensis::Value& Id, const Amanuensis::Val
         }
     }
 
-    Amanuensis::Value Result = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Result, "isIncomplete", Amanuensis::Value(false));
+    Amanuensis::JsonValue Result = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Result, "isIncomplete", Amanuensis::JsonValue(false));
     Amanuensis::Json::Insert(Result, "items", std::move(Items));
     Reply(Id, std::move(Result));
 }
 
-void Server::HandleDefinition(const Amanuensis::Value& Id, const Amanuensis::Value& Params) {
+void Server::HandleDefinition(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params) {
     const std::string Uri =
         Amanuensis::Json::AsString(Amanuensis::Json::Get(Amanuensis::Json::Get(Params, "textDocument"), "uri"));
     const auto [Line, Column] = PositionFromParams(Amanuensis::Json::Get(Params, "position"));
 
     const auto DocIt = Documents_.find(Uri);
     if (DocIt == Documents_.end()) {
-        Reply(Id, Amanuensis::Value());
+        Reply(Id, Amanuensis::JsonValue());
         return;
     }
     const OpenDocument& Doc = DocIt->second;
 
     const auto Token = TokenAtPosition(Doc.Text, Line, Column);
     if (!Token || Token->Kind != Lustre::TokenKind::VariableName) {
-        Reply(Id, Amanuensis::Value());
+        Reply(Id, Amanuensis::JsonValue());
         return;
     }
 
@@ -307,8 +307,8 @@ void Server::HandleDefinition(const Amanuensis::Value& Id, const Amanuensis::Val
     // lookup rather than value resolution).
     for (const auto* V : CollectInScopeVariables(*Doc.Parsed.Sheet)) {
         if (V->Name == Token->Text) {
-            Amanuensis::Value Location = Amanuensis::Json::MakeObject();
-            Amanuensis::Json::Insert(Location, "uri", Amanuensis::Value(Uri));
+            Amanuensis::JsonValue Location = Amanuensis::Json::MakeObject();
+            Amanuensis::Json::Insert(Location, "uri", Amanuensis::JsonValue(Uri));
             Amanuensis::Json::Insert(Location, "range", MakeRange(V->Location.Line, V->Location.Column));
             Reply(Id, std::move(Location));
             return;
@@ -320,8 +320,8 @@ void Server::HandleDefinition(const Amanuensis::Value& Id, const Amanuensis::Val
         for (const auto* V : CollectInScopeVariables(*Global)) {
             if (V->Name == Token->Text) {
                 const std::filesystem::path GlobalPath = std::filesystem::path(Path).parent_path() / "global.lustre";
-                Amanuensis::Value Location = Amanuensis::Json::MakeObject();
-                Amanuensis::Json::Insert(Location, "uri", Amanuensis::Value(PathToUri(GlobalPath.string())));
+                Amanuensis::JsonValue Location = Amanuensis::Json::MakeObject();
+                Amanuensis::Json::Insert(Location, "uri", Amanuensis::JsonValue(PathToUri(GlobalPath.string())));
                 Amanuensis::Json::Insert(Location, "range", MakeRange(V->Location.Line, V->Location.Column));
                 Reply(Id, std::move(Location));
                 return;
@@ -329,7 +329,7 @@ void Server::HandleDefinition(const Amanuensis::Value& Id, const Amanuensis::Val
         }
     }
 
-    Reply(Id, Amanuensis::Value());
+    Reply(Id, Amanuensis::JsonValue());
 }
 
 } // namespace LustreLsp

@@ -15,14 +15,14 @@ namespace {
 // standing in for stdin, capturing every message it writes to a second temp file
 // standing in for stdout. Server::Run exits once it has processed every request
 // (mirroring how a real client would end the session with "exit").
-std::vector<Amanuensis::Value> RunServer(const std::vector<Amanuensis::Value>& Requests) {
+std::vector<Amanuensis::JsonValue> RunServer(const std::vector<Amanuensis::JsonValue>& Requests) {
     std::FILE* In = std::tmpfile();
     for (const auto& Req : Requests) {
         JsonRpc::WriteMessage(In, Req);
     }
-    Amanuensis::Value Exit = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Exit, "jsonrpc", Amanuensis::Value("2.0"));
-    Amanuensis::Json::Insert(Exit, "method", Amanuensis::Value("exit"));
+    Amanuensis::JsonValue Exit = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Exit, "jsonrpc", Amanuensis::JsonValue("2.0"));
+    Amanuensis::Json::Insert(Exit, "method", Amanuensis::JsonValue("exit"));
     JsonRpc::WriteMessage(In, Exit);
     std::rewind(In);
 
@@ -32,7 +32,7 @@ std::vector<Amanuensis::Value> RunServer(const std::vector<Amanuensis::Value>& R
     std::fclose(In);
 
     std::rewind(Out);
-    std::vector<Amanuensis::Value> Responses;
+    std::vector<Amanuensis::JsonValue> Responses;
     while (const auto Msg = JsonRpc::ReadMessage(Out)) {
         Responses.push_back(*Msg);
     }
@@ -40,33 +40,33 @@ std::vector<Amanuensis::Value> RunServer(const std::vector<Amanuensis::Value>& R
     return Responses;
 }
 
-Amanuensis::Value MakeDidOpen(const std::string& Uri, const std::string& Text) {
-    Amanuensis::Value TextDocument = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(TextDocument, "uri", Amanuensis::Value(Uri));
-    Amanuensis::Json::Insert(TextDocument, "text", Amanuensis::Value(Text));
-    Amanuensis::Value Params = Amanuensis::Json::MakeObject();
+Amanuensis::JsonValue MakeDidOpen(const std::string& Uri, const std::string& Text) {
+    Amanuensis::JsonValue TextDocument = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(TextDocument, "uri", Amanuensis::JsonValue(Uri));
+    Amanuensis::Json::Insert(TextDocument, "text", Amanuensis::JsonValue(Text));
+    Amanuensis::JsonValue Params = Amanuensis::Json::MakeObject();
     Amanuensis::Json::Insert(Params, "textDocument", std::move(TextDocument));
-    Amanuensis::Value Message = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::Value("2.0"));
-    Amanuensis::Json::Insert(Message, "method", Amanuensis::Value("textDocument/didOpen"));
+    Amanuensis::JsonValue Message = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::JsonValue("2.0"));
+    Amanuensis::Json::Insert(Message, "method", Amanuensis::JsonValue("textDocument/didOpen"));
     Amanuensis::Json::Insert(Message, "params", std::move(Params));
     return Message;
 }
 
-Amanuensis::Value MakeRequest(int Id, const std::string& Method, const std::string& Uri, std::uint32_t Line0,
+Amanuensis::JsonValue MakeRequest(int Id, const std::string& Method, const std::string& Uri, std::uint32_t Line0,
                                 std::uint32_t Character0) {
-    Amanuensis::Value TextDocument = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(TextDocument, "uri", Amanuensis::Value(Uri));
-    Amanuensis::Value Position = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Position, "line", Amanuensis::Value(static_cast<long long>(Line0)));
-    Amanuensis::Json::Insert(Position, "character", Amanuensis::Value(static_cast<long long>(Character0)));
-    Amanuensis::Value Params = Amanuensis::Json::MakeObject();
+    Amanuensis::JsonValue TextDocument = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(TextDocument, "uri", Amanuensis::JsonValue(Uri));
+    Amanuensis::JsonValue Position = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Position, "line", Amanuensis::JsonValue(static_cast<long long>(Line0)));
+    Amanuensis::Json::Insert(Position, "character", Amanuensis::JsonValue(static_cast<long long>(Character0)));
+    Amanuensis::JsonValue Params = Amanuensis::Json::MakeObject();
     Amanuensis::Json::Insert(Params, "textDocument", std::move(TextDocument));
     Amanuensis::Json::Insert(Params, "position", std::move(Position));
-    Amanuensis::Value Message = Amanuensis::Json::MakeObject();
-    Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::Value("2.0"));
-    Amanuensis::Json::Insert(Message, "id", Amanuensis::Value(static_cast<long long>(Id)));
-    Amanuensis::Json::Insert(Message, "method", Amanuensis::Value(Method));
+    Amanuensis::JsonValue Message = Amanuensis::Json::MakeObject();
+    Amanuensis::Json::Insert(Message, "jsonrpc", Amanuensis::JsonValue("2.0"));
+    Amanuensis::Json::Insert(Message, "id", Amanuensis::JsonValue(static_cast<long long>(Id)));
+    Amanuensis::Json::Insert(Message, "method", Amanuensis::JsonValue(Method));
     Amanuensis::Json::Insert(Message, "params", std::move(Params));
     return Message;
 }

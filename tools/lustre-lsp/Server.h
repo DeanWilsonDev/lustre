@@ -33,16 +33,16 @@ private:
         Lustre::ParseResult Parsed;
     };
 
-    void HandleMessage(const Amanuensis::Value& Message);
-    void Reply(const Amanuensis::Value& Id, Amanuensis::Value Result);
-    void Notify(const std::string& Method, Amanuensis::Value Params);
+    void HandleMessage(const Amanuensis::JsonValue& Message);
+    void Reply(const Amanuensis::JsonValue& Id, Amanuensis::JsonValue Result);
+    void Notify(const std::string& Method, Amanuensis::JsonValue Params);
 
-    void HandleInitialize(const Amanuensis::Value& Id, const Amanuensis::Value& Params);
-    void HandleDidOpen(const Amanuensis::Value& Params);
-    void HandleDidChange(const Amanuensis::Value& Params);
-    void HandleDidClose(const Amanuensis::Value& Params);
-    void HandleCompletion(const Amanuensis::Value& Id, const Amanuensis::Value& Params);
-    void HandleDefinition(const Amanuensis::Value& Id, const Amanuensis::Value& Params);
+    void HandleInitialize(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleDidOpen(const Amanuensis::JsonValue& Params);
+    void HandleDidChange(const Amanuensis::JsonValue& Params);
+    void HandleDidClose(const Amanuensis::JsonValue& Params);
+    void HandleCompletion(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
+    void HandleDefinition(const Amanuensis::JsonValue& Id, const Amanuensis::JsonValue& Params);
 
     // Reparses Documents_[Uri] from Text and publishes fresh diagnostics — the one path
     // both didOpen and didChange funnel through.
