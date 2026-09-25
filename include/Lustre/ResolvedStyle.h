@@ -67,12 +67,15 @@ enum class TextOverflow { Clip, Ellipsis };
 // fixed-size-override gap closed first.
 enum class WhiteSpace { Nowrap, Normal };
 
-// A resolved length, kept unresolved-unit-free: §1.5's px/%/vw/vh/rem/em are
-// all folded down to a single logical-pixel float by the resolver (against
-// the parent's computed size for %, the window's logical size for vw/vh).
-// rem/em are stubbed per §1.5/§7 — the resolver has no root/current
-// font-size convention yet, so a rem/em value resolves to itself unscaled,
-// same "accepted, not yet applied" treatment as width/height/transform.
+enum class LengthUnit { Px, Percent, Vw, Vh };
+
+struct Length {
+    float      Value{0.0F};
+    LengthUnit Unit{LengthUnit::Px};
+
+    friend bool operator==(const Length&, const Length&) = default;
+};
+
 struct ResolvedStyle {
     std::optional<Color>       BackgroundColor;
     // A top-to-bottom two-stop gradient fill (docs/
@@ -113,16 +116,12 @@ struct ResolvedStyle {
     std::shared_ptr<ResolvedStyle> Active;
     std::shared_ptr<ResolvedStyle> Disabled;
 
-    // `width`/`height` -- no longer stubs: penumbra-ui-backend's LustreStyleApplier copies
-    // these onto any Box's own BoxStyle::WidthLogical/HeightLogical (Styles.h's ">= 0 is an
-    // explicit border-box override" contract, already honored by Measure/Arrange).
-    std::optional<float> WidthLogical;
-    std::optional<float> HeightLogical;
-    // Still a stub (§2) -- carried through so a future backend mapping has something to
-    // consume; no current backend reads this one.
-    std::optional<float> TransformScale;
+    std::optional<Length> Width;
+    std::optional<Length> Height;
+    std::optional<Length> MinWidth;
+    std::optional<Length> MaxWidth;
+    std::optional<float>  TransformScale;
 
-    std::optional<float>        MaxWidthLogical;
     std::optional<TextOverflow> TextOverflowMode;
     std::optional<WhiteSpace>   WhiteSpaceMode;
 

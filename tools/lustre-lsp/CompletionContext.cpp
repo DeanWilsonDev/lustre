@@ -137,10 +137,10 @@ const std::vector<std::string_view> kPropertyNames{
     "padding",          "margin",                      "color",
     "font-family",      "font-size",                   "display",
     "flex-direction",   "gap",                         "align-items",
-    "width",            "height",                      "max-width",
-    "text-overflow",    "white-space",                 "transform",
-    "transition",       "flex-grow",                   "scrollbar-color",
-    "scrollbar-width",
+    "width",            "height",                      "min-width",
+    "max-width",        "text-overflow",               "white-space",
+    "transform",        "transition",                  "flex-grow",
+    "scrollbar-color",  "scrollbar-width",
 };
 
 const std::vector<std::string_view> kPrimitiveSelectorNames{

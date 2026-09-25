@@ -77,19 +77,43 @@ std::string StripUnitSuffix(std::string_view Text, float& OutValue) {
     return std::string(Text.substr(End));
 }
 
-// Folds px/%/vw/vh/rem/em (§1.5) down to a single logical-pixel float, the
-// shape the IR (§3) stores. %/vw/vh proper resolution needs parent-size/
-// window-size context this host-agnostic core doesn't have piped in yet, and
-// rem/em are stubbed pending a root-font-size convention (§1.5/§7 open
-// question) -- all five pass the bare numeric value through unscaled, same
-// "accepted, not yet fully applied" treatment the spec gives width/height.
-std::optional<float> ParseLength(const ValuePart& Part) {
+std::optional<Length> ParseLength(const ValuePart& Part) {
     if (!Part.Number) {
         return std::nullopt;
     }
-    float Value = 0.0F;
-    StripUnitSuffix(*Part.Number, Value);
-    return Value;
+    float             Value = 0.0F;
+    const std::string Unit  = StripUnitSuffix(*Part.Number, Value);
+    if (Unit == "%") {
+        return Length{Value, LengthUnit::Percent};
+    }
+    if (Unit == "vw") {
+        return Length{Value, LengthUnit::Vw};
+    }
+    if (Unit == "vh") {
+        return Length{Value, LengthUnit::Vh};
+    }
+    return Length{Value, LengthUnit::Px};
+}
+
+bool IsRelative(const Length& L) { return L.Unit != LengthUnit::Px; }
+
+void ReportRelativeLength(const std::string& Prop, const ValuePart& Part, std::vector<ResolveDiagnostic>& Diagnostics) {
+    Diagnostics.push_back(ResolveDiagnostic{"`" + Prop + ": " + *Part.Number +
+                                              "` -- only `width`, `height`, `min-width` and `max-width` take `%`, "
+                                              "`vw` or `vh`. Use a px length here."});
+}
+
+std::optional<float> ParsePixels(const ValuePart& Part, const std::string& Prop,
+                                 std::vector<ResolveDiagnostic>& Diagnostics) {
+    const std::optional<Length> Parsed = ParseLength(Part);
+    if (!Parsed) {
+        return std::nullopt;
+    }
+    if (IsRelative(*Parsed)) {
+        ReportRelativeLength(Prop, Part, Diagnostics);
+        return std::nullopt;
+    }
+    return Parsed->Value;
 }
 
 std::optional<float> ParseSeconds(const ValuePart& Part) {
@@ -213,15 +237,12 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
     } else if (Prop == "background-gradient-end") {
         Out.BackgroundGradientEnd = ParseColor(Resolved[0]);
     } else if (Prop == "box-shadow") {
-        // `box-shadow: <color> <length>` -- a single-layer shorthand (see
-        // docs/next_steps.md; no consumer needs CSS's comma-separated
-        // multi-shadow list), color and blur radius in either order.
         std::optional<Color> ShadowColor;
         std::optional<float> ShadowBlur;
         for (const auto& V : Resolved) {
             if (auto C = ParseColor(V)) {
                 ShadowColor = C;
-            } else if (auto L = ParseLength(V)) {
+            } else if (auto L = ParsePixels(V, Prop, Diagnostics)) {
                 ShadowBlur = L;
             }
         }
@@ -230,15 +251,21 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
     } else if (Prop == "border-color") {
         Out.BorderColor = ParseColor(Resolved[0]);
     } else if (Prop == "border-width") {
-        Out.BorderWidth = ParseLength(Resolved[0]);
+        Out.BorderWidth = ParsePixels(Resolved[0], Prop, Diagnostics);
     } else if (Prop == "border-radius") {
-        Out.BorderRadius = ParseLength(Resolved[0]);
+        Out.BorderRadius = ParsePixels(Resolved[0], Prop, Diagnostics);
     } else if (Prop == "padding" || Prop == "margin") {
         std::vector<float> Lengths;
         for (const auto& V : Resolved) {
-            if (auto L = ParseLength(V)) {
-                Lengths.push_back(*L);
+            const std::optional<Length> L = ParseLength(V);
+            if (!L) {
+                continue;
             }
+            if (IsRelative(*L)) {
+                ReportRelativeLength(Prop, V, Diagnostics);
+                return;
+            }
+            Lengths.push_back(L->Value);
         }
         (Prop == "padding" ? Out.Padding : Out.Margin) = ParseEdgeInsets(Lengths);
     } else if (Prop == "color") {
@@ -248,7 +275,7 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
             Font.Path = Resolved[0].StringValue;
         }
     } else if (Prop == "font-size") {
-        Font.SizeLogical = ParseLength(Resolved[0]);
+        Font.SizeLogical = ParsePixels(Resolved[0], Prop, Diagnostics);
     } else if (Prop == "display") {
         if (Resolved[0].Literal == "stack") {
             Out.DisplayMode = Display::Stack;
@@ -262,7 +289,7 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
             Out.FlexDirectionMode = FlexDirection::Column;
         }
     } else if (Prop == "gap") {
-        Out.Gap = ParseLength(Resolved[0]);
+        Out.Gap = ParsePixels(Resolved[0], Prop, Diagnostics);
     } else if (Prop == "align-items") {
         static const std::unordered_map<std::string, Align> kAligns{
             {"start", Align::Start}, {"center", Align::Center}, {"end", Align::End}, {"stretch", Align::Stretch}};
@@ -285,11 +312,13 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
             }
         }
     } else if (Prop == "width") {
-        Out.WidthLogical = ParseLength(Resolved[0]);
+        Out.Width = ParseLength(Resolved[0]);
     } else if (Prop == "height") {
-        Out.HeightLogical = ParseLength(Resolved[0]);
+        Out.Height = ParseLength(Resolved[0]);
+    } else if (Prop == "min-width") {
+        Out.MinWidth = ParseLength(Resolved[0]);
     } else if (Prop == "max-width") {
-        Out.MaxWidthLogical = ParseLength(Resolved[0]);
+        Out.MaxWidth = ParseLength(Resolved[0]);
     } else if (Prop == "text-overflow") {
         if (Resolved[0].Literal == "clip") {
             Out.TextOverflowMode = TextOverflow::Clip;
@@ -303,14 +332,14 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
             Out.WhiteSpaceMode = WhiteSpace::Normal;
         }
     } else if (Prop == "flex-grow") {
-        Out.FlexGrow = ParseLength(Resolved[0]);
+        Out.FlexGrow = ParsePixels(Resolved[0], Prop, Diagnostics);
     } else if (Prop == "scrollbar-color") {
         Out.ScrollbarThumbColor = ParseColor(Resolved[0]);
         if (Resolved.size() > 1) {
             Out.ScrollbarTrackColor = ParseColor(Resolved[1]);
         }
     } else if (Prop == "scrollbar-width") {
-        Out.ScrollbarWidthLogical = ParseLength(Resolved[0]);
+        Out.ScrollbarWidthLogical = ParsePixels(Resolved[0], Prop, Diagnostics);
     } else if (Prop == "transform") {
         if (Resolved[0].Literal == "scale" && Resolved[0].CallArgument) {
             float Value = 0.0F;

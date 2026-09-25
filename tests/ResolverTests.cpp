@@ -177,8 +177,8 @@ DESCRIBE("Resolver", {
         std::vector<ResolveDiagnostic> Diagnostics;
         const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
 
-        REQUIRE_TRUE(Style.MaxWidthLogical.has_value());
-        ASSERT_TRUE(*Style.MaxWidthLogical == 220.0F);
+        REQUIRE_TRUE(Style.MaxWidth.has_value());
+        ASSERT_TRUE(*Style.MaxWidth == (Length{220.0F, LengthUnit::Px}));
         REQUIRE_TRUE(Style.TextOverflowMode.has_value());
         ASSERT_TRUE(*Style.TextOverflowMode == TextOverflow::Ellipsis);
     });
@@ -207,8 +207,69 @@ DESCRIBE("Resolver", {
         std::vector<ResolveDiagnostic> Diagnostics;
         const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
 
-        REQUIRE_TRUE(Style.MaxWidthLogical.has_value());
+        REQUIRE_TRUE(Style.MaxWidth.has_value());
         ASSERT_FALSE(Style.TextOverflowMode.has_value());
+    });
+
+    IT("keeps the unit on width, height, min-width and max-width", {
+        const auto Sheet = ParseOrFail(
+            ".x { width: 600px; height: 50vh; min-width: 200px; max-width: 100%; }\n.y { width: 80vw; }",
+            "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement X("x", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Y("y", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle XStyle = R.Resolve(X, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+        const ResolvedStyle YStyle = R.Resolve(Y, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_TRUE(XStyle.Width.has_value());
+        ASSERT_TRUE(*XStyle.Width == (Length{600.0F, LengthUnit::Px}));
+        REQUIRE_TRUE(XStyle.Height.has_value());
+        ASSERT_TRUE(*XStyle.Height == (Length{50.0F, LengthUnit::Vh}));
+        REQUIRE_TRUE(XStyle.MinWidth.has_value());
+        ASSERT_TRUE(*XStyle.MinWidth == (Length{200.0F, LengthUnit::Px}));
+        REQUIRE_TRUE(XStyle.MaxWidth.has_value());
+        ASSERT_TRUE(*XStyle.MaxWidth == (Length{100.0F, LengthUnit::Percent}));
+        REQUIRE_TRUE(YStyle.Width.has_value());
+        ASSERT_TRUE(*YStyle.Width == (Length{80.0F, LengthUnit::Vw}));
+    });
+
+    IT("resolves a unitless width, rem and em as px", {
+        const auto Sheet = ParseOrFail(".x { width: 40; height: 2rem; max-width: 3em; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(*Style.Width == (Length{40.0F, LengthUnit::Px}));
+        ASSERT_TRUE(*Style.Height == (Length{2.0F, LengthUnit::Px}));
+        ASSERT_TRUE(*Style.MaxWidth == (Length{3.0F, LengthUnit::Px}));
+    });
+
+    IT("rejects %, vw and vh on px-only properties with a diagnostic", {
+        const auto Sheet =
+            ParseOrFail(".x { gap: 10%; padding: 4px 5vw; border-radius: 2vh; font-size: 50%; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_FALSE(Style.Gap.has_value());
+        ASSERT_FALSE(Style.Padding.has_value());
+        ASSERT_FALSE(Style.BorderRadius.has_value());
+        ASSERT_EQUAL(Diagnostics.size(), std::size_t{4});
+        ASSERT_TRUE(Diagnostics[0].Message.find("gap: 10%") != std::string::npos);
+        ASSERT_TRUE(Diagnostics[1].Message.find("padding: 5vw") != std::string::npos);
     });
 
     IT("resolves white-space: normal", {

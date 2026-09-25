@@ -116,6 +116,11 @@ fallback.
 | `vw`/`vh` | Application window's current logical size | real |
 | `rem` / `em` | — | **stubbed**, no root-font-size convention exists yet |
 
+`%`, `vw` and `vh` only work on `width`, `height`, `min-width` and `max-width`,
+and are resolved at layout time, so they follow resizes. Anywhere else they're
+a resolve diagnostic and the declaration is dropped. `width: 600px; max-width:
+100%;` is the way to write a dialog panel that shrinks in a narrow window.
+
 ## Property reference (selected — full real-vs-stubbed table in `docs/lustre_core_spec.md` §2)
 
 **Real (applied by the Penumbra backend today):** `background-color`,
@@ -123,7 +128,9 @@ fallback.
 `border-radius` (single uniform value, no per-corner shorthand),
 `padding`/`margin` (1–4 value CSS shorthand), `color` (text only),
 `font-family`/`font-size`, `display: stack|inline`, `flex-direction:
-row|column`, `gap`, `align-items: start|center|end|stretch`, `max-width`,
+row|column`, `gap`, `align-items: start|center|end|stretch`, `width`,
+`height`, `min-width`, `max-width` (on `text`, a px `max-width` is the
+truncation width),
 `text-overflow: clip|ellipsis` (needs `max-width` set to take effect),
 `white-space: nowrap|normal` (`normal` word-wraps text across lines to fit
 the box's own width; mutually exclusive with `max-width`/`text-overflow`
