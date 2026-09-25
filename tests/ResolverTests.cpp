@@ -239,6 +239,123 @@ DESCRIBE("Resolver", {
         ASSERT_TRUE(*Style.WhiteSpaceMode == WhiteSpace::Nowrap);
     });
 
+    IT("resolves flex-grow as a unitless number", {
+        const auto Sheet = ParseOrFail(".x { flex-grow: 2; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.FlexGrow.has_value());
+        ASSERT_EQUAL(*Style.FlexGrow, 2.0F);
+        ASSERT_TRUE(Diagnostics.empty());
+    });
+
+    IT("resolves flex-grow on a leaf without a container-only diagnostic", {
+        const auto Sheet = ParseOrFail(".x { flex-grow: 1; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Text", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.FlexGrow.has_value());
+        ASSERT_EQUAL(*Style.FlexGrow, 1.0F);
+        ASSERT_TRUE(Diagnostics.empty());
+    });
+
+    IT("resolves scrollbar-color with a thumb and a track", {
+        const auto Sheet = ParseOrFail(".x { scrollbar-color: #3A3A48 #20202880; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.ScrollbarThumbColor.has_value());
+        ASSERT_TRUE(*Style.ScrollbarThumbColor == (Color{0x3A, 0x3A, 0x48, 0xFF}));
+        REQUIRE_TRUE(Style.ScrollbarTrackColor.has_value());
+        ASSERT_TRUE(*Style.ScrollbarTrackColor == (Color{0x20, 0x20, 0x28, 0x80}));
+    });
+
+    IT("resolves scrollbar-color with only a thumb", {
+        const auto Sheet = ParseOrFail(".x { scrollbar-color: #3A3A48; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.ScrollbarThumbColor.has_value());
+        ASSERT_FALSE(Style.ScrollbarTrackColor.has_value());
+    });
+
+    IT("resolves a :hover scrollbar-color into the hover overlay", {
+        const auto Sheet = ParseOrFail(".x { scrollbar-color: #3A3A48; }\n.x:hover { scrollbar-color: #4C5287; }",
+                                       "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.Hover != nullptr);
+        REQUIRE_TRUE(Style.Hover->ScrollbarThumbColor.has_value());
+        ASSERT_TRUE(*Style.Hover->ScrollbarThumbColor == (Color{0x4C, 0x52, 0x87, 0xFF}));
+    });
+
+    IT("resolves scrollbar-width as a length", {
+        const auto Sheet = ParseOrFail(".x { scrollbar-width: 6px; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Scroll", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.ScrollbarWidthLogical.has_value());
+        ASSERT_EQUAL(*Style.ScrollbarWidthLogical, 6.0F);
+    });
+
+    IT("matches the textarea primitive selector against a TextArea element", {
+        const auto Sheet = ParseOrFail("textarea { background-color: #101014; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("", "TextArea", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.BackgroundColor.has_value());
+        ASSERT_TRUE(*Style.BackgroundColor == (Color{0x10, 0x10, 0x14, 0xFF}));
+    });
+
+    IT("diagnoses a container-only property on a TextArea", {
+        const auto Sheet = ParseOrFail(".x { display: stack; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "TextArea", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_EQUAL(Diagnostics.size(), static_cast<std::size_t>(1));
+    });
+
     IT("resolves a descendant selector across real ancestors", {
         const auto Sheet = ParseOrFail(R"(
 .card {

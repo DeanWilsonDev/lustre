@@ -170,20 +170,11 @@ struct FontAccumulator {
     std::optional<float>       SizeLogical;
 };
 
-// §2's container-only properties (`display`, `flex-direction`, `gap`,
-// `align-items`, `justify-content`) map to `Box::Layout`/`Box::ChildGap`/
-// `Box::CrossAlignment`, which only exist on Penumbra's `Box` widget. Applying one to a leaf
-// primitive resolves silently today with no feedback (docs/next_steps.md,
-// "`display: stack` silently corrupts leaf widgets") -- a leaf has no `Box`
-// children for `Box::Measure` to recurse into, so it collapses to whatever
-// its content-measurement branch reports instead of laying children out.
 bool IsContainerTag(std::string_view Tag) {
     static const std::unordered_map<std::string_view, bool> kIsContainer{
-        {"Frame", true}, {"Grid", true}, {"Scroll", true}, {"Inline", true},
-        {"Image", false}, {"Text", false}, {"Input", false}};
+        {"Frame", true},  {"Grid", true},  {"Scroll", true}, {"Inline", true},
+        {"Image", false}, {"Text", false}, {"Input", false}, {"TextArea", false}};
     auto It = kIsContainer.find(Tag);
-    // An unrecognized tag (a backend widget outside Lustre's known set)
-    // can't be judged either way -- stay silent rather than guess.
     return It == kIsContainer.end() || It->second;
 }
 
@@ -311,6 +302,15 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
         } else if (Resolved[0].Literal == "normal") {
             Out.WhiteSpaceMode = WhiteSpace::Normal;
         }
+    } else if (Prop == "flex-grow") {
+        Out.FlexGrow = ParseLength(Resolved[0]);
+    } else if (Prop == "scrollbar-color") {
+        Out.ScrollbarThumbColor = ParseColor(Resolved[0]);
+        if (Resolved.size() > 1) {
+            Out.ScrollbarTrackColor = ParseColor(Resolved[1]);
+        }
+    } else if (Prop == "scrollbar-width") {
+        Out.ScrollbarWidthLogical = ParseLength(Resolved[0]);
     } else if (Prop == "transform") {
         if (Resolved[0].Literal == "scale" && Resolved[0].CallArgument) {
             float Value = 0.0F;
@@ -516,7 +516,7 @@ ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Shee
 std::string_view PrimitiveTagForSelector(std::string_view LustreSelectorName) {
     static const std::unordered_map<std::string_view, std::string_view> kMapping{
         {"frame", "Frame"}, {"inline", "Inline"}, {"grid", "Grid"},   {"image", "Image"},
-        {"text", "Text"},   {"scroll", "Scroll"}, {"input", "Input"}};
+        {"text", "Text"},   {"scroll", "Scroll"}, {"input", "Input"}, {"textarea", "TextArea"}};
     auto It = kMapping.find(LustreSelectorName);
     return It == kMapping.end() ? std::string_view{} : It->second;
 }

@@ -122,14 +122,14 @@ struct ResolvedStyle {
     // consume; no current backend reads this one.
     std::optional<float> TransformScale;
 
-    // `max-width` / `text-overflow` (`text` only) -- unlike `width` above,
-    // this pair is real: a backend `Label` can honor a maximum logical-pixel
-    // width without needing Penumbra's general fixed-size-override gap
-    // closed first, since text truncation only ever shrinks, never grows,
-    // the widget's own reported size.
     std::optional<float>        MaxWidthLogical;
     std::optional<TextOverflow> TextOverflowMode;
     std::optional<WhiteSpace>   WhiteSpaceMode;
+
+    std::optional<float> FlexGrow;
+    std::optional<Color> ScrollbarThumbColor;
+    std::optional<Color> ScrollbarTrackColor;
+    std::optional<float> ScrollbarWidthLogical;
 };
 
 } // namespace Lustre

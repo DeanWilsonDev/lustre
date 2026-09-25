@@ -139,11 +139,12 @@ const std::vector<std::string_view> kPropertyNames{
     "flex-direction",   "gap",                         "align-items",
     "width",            "height",                      "max-width",
     "text-overflow",    "white-space",                 "transform",
-    "transition",
+    "transition",       "flex-grow",                   "scrollbar-color",
+    "scrollbar-width",
 };
 
 const std::vector<std::string_view> kPrimitiveSelectorNames{
-    "frame", "inline", "grid", "image", "text", "scroll", "input",
+    "frame", "inline", "grid", "image", "text", "scroll", "input", "textarea",
 };
 
 const std::vector<std::string_view> kPseudoClassNames{

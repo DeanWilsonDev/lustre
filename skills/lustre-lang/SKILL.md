@@ -47,7 +47,7 @@ frame { }               /* primitive-element selector, lowercase */
 `Frame.card { }` (compound tag+class) is **invalid syntax** — a parse
 error. Primitive selectors map to Iris's PascalCase tags via a closed
 table: `frame→Frame`, `inline→Inline`, `grid→Grid`, `image→Image`,
-`text→Text`, `scroll→Scroll`, `input→Input`. **`icon`/`Icon` is not in this
+`text→Text`, `scroll→Scroll`, `input→Input`, `textarea→TextArea`. **`icon`/`Icon` is not in this
 table yet** — a known, documented gap; you cannot select `<Icon>` by
 primitive selector.
 
@@ -130,7 +130,14 @@ the box's own width; mutually exclusive with `max-width`/`text-overflow`
 in practice),
 `transition` (color-only, e.g. `background-color 0.2s` — no easing
 keyword), `box-shadow` (color + blur radius only, e.g. `box-shadow:
-#000000AA 12px;` — no multi-layer list).
+#000000AA 12px;` — no multi-layer list), `flex-grow: <number>` (a stack
+child shares the main-axis space its siblings and gaps leave, in proportion
+to its number — `flex: 1`-style, the child's own content size is ignored;
+the way to make a `<Scroll>` below a header end at its parent's bottom
+edge), `scrollbar-color: <thumb> [<track>]` and `scrollbar-width:
+<length>` (`<Scroll>`/`<TextArea>`; no thumb is drawn until both a thumb
+colour and a width are set; a `:hover` `scrollbar-color` applies while the
+pointer is over the panel).
 
 **Stubbed (parsed into the IR, not applied by any backend yet):** `width`,
 `height`, `transform: scale(<number>)`, most non-`background-color`
