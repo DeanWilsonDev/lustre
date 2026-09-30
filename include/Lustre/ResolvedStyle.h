@@ -78,12 +78,6 @@ struct Length {
 
 struct ResolvedStyle {
     std::optional<Color>       BackgroundColor;
-    // A top-to-bottom two-stop gradient fill (docs/
-    // penumbra_iris_lustre_componentization_gaps_requirements.md §2) --
-    // `background-gradient-start`/`background-gradient-end`. Populated as a
-    // pair, same as Font below: the resolver only sets these once both
-    // colors are present in the same rule (or the cascade across global +
-    // component layers supplies both), never just one half.
     std::optional<Color>       BackgroundGradientStart;
     std::optional<Color>       BackgroundGradientEnd;
     std::optional<Color>       BorderColor;
@@ -92,6 +86,8 @@ struct ResolvedStyle {
     std::optional<EdgeInsets>  Padding;
     std::optional<EdgeInsets>  Margin;
     std::optional<Color>       TextColor;
+    std::optional<std::string> FontFamily;
+    std::optional<float>       FontSizeLogical;
     std::optional<FontRequest> Font;
     std::optional<Display>       DisplayMode;
     std::optional<FlexDirection> FlexDirectionMode;
@@ -99,19 +95,9 @@ struct ResolvedStyle {
     std::optional<Align>         AlignItems;
     std::optional<Justify>       JustifyContent;
     std::optional<ColorTransition> Transition;
-    // A soft rectangular shadow -- color + blur radius, mirroring Penumbra's
-    // own Renderer::DrawDropShadow two-argument shape. Populated as a pair,
-    // same convention as BackgroundGradientStart/BackgroundGradientEnd above:
-    // `box-shadow: <color> <length>` is one shorthand property, and the
-    // resolver only keeps a color with no blur radius (or vice versa) if
-    // that's genuinely all the shorthand supplied.
     std::optional<Color> ShadowColor;
     std::optional<float> ShadowBlurRadiusLogical;
 
-    // Pseudo-class-scoped overlays — present only if the source rule defined
-    // them. Recursive rather than flat fields so a pseudo-class block can in
-    // principle override any property, matching §1.2's "a pseudo-class block
-    // nests exactly like any other selector block."
     std::shared_ptr<ResolvedStyle> Hover;
     std::shared_ptr<ResolvedStyle> Active;
     std::shared_ptr<ResolvedStyle> Disabled;

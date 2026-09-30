@@ -186,14 +186,6 @@ std::optional<EdgeInsets> ParseEdgeInsets(const std::vector<float>& Lengths) {
     }
 }
 
-// State threaded through one target's declaration application pass, since
-// `font-family`/`font-size` combine into a single FontRequest (§2) and may
-// arrive as separate declarations in either order.
-struct FontAccumulator {
-    std::optional<std::string> Path;
-    std::optional<float>       SizeLogical;
-};
-
 bool IsContainerTag(std::string_view Tag) {
     static const std::unordered_map<std::string_view, bool> kIsContainer{
         {"Frame", true},  {"Grid", true},  {"Scroll", true}, {"Inline", true},
@@ -208,7 +200,7 @@ bool IsContainerOnlyProperty(const std::string& Prop) {
 }
 
 void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, ResolvedStyle& Out,
-                       FontAccumulator& Font, std::string_view TargetTag, std::vector<ResolveDiagnostic>& Diagnostics) {
+                       std::string_view TargetTag, std::vector<ResolveDiagnostic>& Diagnostics) {
     std::vector<ValuePart> Resolved;
     Resolved.reserve(Decl.Values.size());
     for (const auto& Raw : Decl.Values) {
@@ -272,10 +264,10 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
         Out.TextColor = ParseColor(Resolved[0]);
     } else if (Prop == "font-family") {
         if (Resolved[0].StringValue) {
-            Font.Path = Resolved[0].StringValue;
+            Out.FontFamily = Resolved[0].StringValue;
         }
     } else if (Prop == "font-size") {
-        Font.SizeLogical = ParsePixels(Resolved[0], Prop, Diagnostics);
+        Out.FontSizeLogical = ParsePixels(Resolved[0], Prop, Diagnostics);
     } else if (Prop == "display") {
         if (Resolved[0].Literal == "stack") {
             Out.DisplayMode = Display::Stack;
@@ -380,12 +372,8 @@ ResolvedStyle& OverlayFor(ResolvedStyle& Base, PseudoKind Kind) {
 void ApplyRuleDeclarations(const Rule& R, const VariableScope& Scope, ResolvedStyle& Out, std::string_view TargetTag,
                             std::vector<ResolveDiagnostic>& Diagnostics) {
     ResolvedStyle& Target = R.Pseudo ? OverlayFor(Out, *R.Pseudo) : Out;
-    FontAccumulator Font;
     for (const auto& Decl : R.Declarations) {
-        ApplyDeclaration(Decl, Scope, Target, Font, TargetTag, Diagnostics);
-    }
-    if (Font.Path && Font.SizeLogical) {
-        Target.Font = FontRequest{*Font.Path, *Font.SizeLogical};
+        ApplyDeclaration(Decl, Scope, Target, TargetTag, Diagnostics);
     }
 }
 
@@ -468,12 +456,12 @@ void ApplyLayer(const Stylesheet* Sheet, const IStyleTarget& Target, bool Unboun
     }
 }
 
-// A gradient needs both stops -- if the cascade (across both layers, and possibly several
-// rules within a layer) only ever supplied one half, treat it as unset rather than handing
-// a backend a start color with no end (or vice versa). Same treatment for `box-shadow`'s
-// color+blur-radius pair. Factored out so Resolver::Resolve() and ResolveCascadedLayers
-// below (which now applies both layers directly rather than routing through Resolve(),
-// see that function's own comment) can't drift on this behavior.
+void CombineFont(ResolvedStyle& Style) {
+    if (Style.FontFamily && Style.FontSizeLogical) {
+        Style.Font = FontRequest{*Style.FontFamily, *Style.FontSizeLogical};
+    }
+}
+
 void FinalizePairedProperties(ResolvedStyle& Style) {
     if (!Style.BackgroundGradientStart.has_value() || !Style.BackgroundGradientEnd.has_value()) {
         Style.BackgroundGradientStart.reset();
@@ -482,6 +470,10 @@ void FinalizePairedProperties(ResolvedStyle& Style) {
     if (!Style.ShadowColor.has_value() || !Style.ShadowBlurRadiusLogical.has_value()) {
         Style.ShadowColor.reset();
         Style.ShadowBlurRadiusLogical.reset();
+    }
+    CombineFont(Style);
+    for (const std::shared_ptr<ResolvedStyle>& Overlay : {Style.Hover, Style.Active, Style.Disabled}) {
+        if (Overlay) CombineFont(*Overlay);
     }
 }
 
@@ -525,18 +517,18 @@ ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Shee
                             std::vector<ResolveDiagnostic>& OutDiagnostics) {
     ResolvedStyle Style = ResolveCascadedLayers(Target, Sheets, OutDiagnostics);
 
-    // §1.7: color/font inheritance -- only walk up for whichever of the two is still unset
-    // after this element's own cascade, and only as far as an ancestor actually exists.
-    // Deliberately not bounded by IsComponentRoot() (see §1.7's own note on Resolver.h) --
-    // real CSS inheritance has no concept of "component," only DOM ancestry.
-    if ((!Style.TextColor || !Style.Font) && Target.Parent() != nullptr) {
+    if ((!Style.TextColor || !Style.FontFamily || !Style.FontSizeLogical) && Target.Parent() != nullptr) {
         const ResolvedStyle Ancestor = ResolveStyle(*Target.Parent(), Sheets, OutDiagnostics);
         if (!Style.TextColor) {
             Style.TextColor = Ancestor.TextColor;
         }
-        if (!Style.Font) {
-            Style.Font = Ancestor.Font;
+        if (!Style.FontFamily) {
+            Style.FontFamily = Ancestor.FontFamily;
         }
+        if (!Style.FontSizeLogical) {
+            Style.FontSizeLogical = Ancestor.FontSizeLogical;
+        }
+        CombineFont(Style);
     }
 
     return Style;

@@ -127,7 +127,9 @@ a resolve diagnostic and the declaration is dropped. `width: 600px; max-width:
 `background-gradient-start`/`-end`, `border-color`, `border-width`,
 `border-radius` (single uniform value, no per-corner shorthand),
 `padding`/`margin` (1–4 value CSS shorthand), `color` (text only),
-`font-family`/`font-size`, `display: stack|inline`, `flex-direction:
+`font-family`/`font-size` (the family is a font file path, which penumbra-ui-backend resolves
+relative to the stylesheet; each inherits on its own, and a size with no family anywhere uses
+the app's default font), `display: stack|inline`, `flex-direction:
 row|column`, `gap`, `align-items: start|center|end|stretch`, `width`,
 `height`, `min-width`, `max-width` (on `text`, a px `max-width` is the
 truncation width),

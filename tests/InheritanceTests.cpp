@@ -140,6 +140,85 @@ DESCRIBE("Inheritance (§1.7)", {
         ASSERT_TRUE(Style.Font->SizeLogical == 14.0F);
     });
 
+    IT("a font-size of its own keeps the family inherited from an ancestor", {
+        const auto Sheet = ParseOrFail(R"(
+.row {
+    font-family: "assets/fonts/body.ttf";
+    font-size: 14px;
+}
+.title { font-size: 20px; }
+)",
+                                        "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Row("row", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Title("title", "Text", &Row);
+        FakeElement Inner("", "Text", &Title);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle TitleStyle = ResolveStyle(Title, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+        const ResolvedStyle InnerStyle = ResolveStyle(Inner, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+
+        REQUIRE_TRUE(TitleStyle.Font.has_value());
+        ASSERT_TRUE(TitleStyle.Font->Path == "assets/fonts/body.ttf");
+        ASSERT_TRUE(TitleStyle.Font->SizeLogical == 20.0F);
+        REQUIRE_TRUE(InnerStyle.Font.has_value());
+        ASSERT_TRUE(InnerStyle.Font->SizeLogical == 20.0F);
+    });
+
+    IT("a font-family of its own keeps the size inherited from an ancestor", {
+        const auto Sheet = ParseOrFail(R"(
+.block { font-size: 13px; }
+.code { font-family: "assets/fonts/mono.ttf"; }
+)",
+                                        "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Block("block", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Code("code", "Text", &Block);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = ResolveStyle(Code, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+
+        REQUIRE_TRUE(Style.Font.has_value());
+        ASSERT_TRUE(Style.Font->Path == "assets/fonts/mono.ttf");
+        ASSERT_TRUE(Style.Font->SizeLogical == 13.0F);
+    });
+
+    IT("a font-size with no font-family anywhere gives no font but keeps the size", {
+        const auto Sheet = ParseOrFail(".title { font-size: 20px; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Row("", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Title("title", "Text", &Row);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = ResolveStyle(Title, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+
+        ASSERT_FALSE(Style.Font.has_value());
+        ASSERT_FALSE(Style.FontFamily.has_value());
+        REQUIRE_TRUE(Style.FontSizeLogical.has_value());
+        ASSERT_TRUE(*Style.FontSizeLogical == 20.0F);
+    });
+
+    IT("a font-family and a font-size from different rules on one element combine", {
+        const auto Sheet = ParseOrFail(R"(
+text { font-family: "assets/fonts/body.ttf"; }
+.badge { font-size: 11px; }
+)",
+                                        "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Badge("badge", "Text", nullptr, /*ComponentRoot=*/true);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = ResolveStyle(Badge, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+
+        REQUIRE_TRUE(Style.Font.has_value());
+        ASSERT_TRUE(Style.Font->Path == "assets/fonts/body.ttf");
+        ASSERT_TRUE(Style.Font->SizeLogical == 11.0F);
+    });
+
     IT("a root element with no ancestor and no match stays unset, no crash", {
         const auto Sheet = ParseOrFail(".unrelated { color: #FFFFFF; }", "test.lustre");
         REQUIRE_TRUE(Sheet.has_value());
