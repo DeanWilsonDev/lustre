@@ -315,4 +315,35 @@ text { font-family: "assets/fonts/body.ttf"; }
         REQUIRE_TRUE(Style.TextColor.has_value());
         ASSERT_TRUE(Style.TextColor->R == 0xAB && Style.TextColor->G == 0xCD && Style.TextColor->B == 0xEF);
     });
+
+    IT("font-style inherits from an ancestor, and a child's own wins", {
+        const auto Sheet = ParseOrFail(".quote { font-style: italic; } .upright { font-style: normal; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Quote("quote", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Inherits("", "Text", &Quote);
+        FakeElement Upright("upright", "Text", &Quote);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Inherited = ResolveStyle(Inherits, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+        const ResolvedStyle Own = ResolveStyle(Upright, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+
+        REQUIRE_TRUE(Inherited.FontStyleMode.has_value());
+        ASSERT_TRUE(*Inherited.FontStyleMode == FontStyle::Italic);
+        REQUIRE_TRUE(Own.FontStyleMode.has_value());
+        ASSERT_TRUE(*Own.FontStyleMode == FontStyle::Normal);
+    });
+
+    IT("text-decoration does not inherit", {
+        const auto Sheet = ParseOrFail(".link { text-decoration: underline; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Link("link", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Child("", "Text", &Link);
+
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = ResolveStyle(Child, StylesheetSet{nullptr, &*Sheet}, Diagnostics);
+
+        ASSERT_FALSE(Style.TextDecorationLine.has_value());
+    });
 });

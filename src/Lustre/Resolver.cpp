@@ -323,6 +323,29 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
         } else if (Resolved[0].Literal == "normal") {
             Out.WhiteSpaceMode = WhiteSpace::Normal;
         }
+    } else if (Prop == "font-style") {
+        if (Resolved[0].Literal == "italic") {
+            Out.FontStyleMode = FontStyle::Italic;
+        } else if (Resolved[0].Literal == "normal") {
+            Out.FontStyleMode = FontStyle::Normal;
+        }
+    } else if (Prop == "text-decoration") {
+        TextDecoration Decoration;
+        bool           Recognized = false;
+        for (const auto& V : Resolved) {
+            if (V.Literal == "underline") {
+                Decoration.Underline = true;
+                Recognized = true;
+            } else if (V.Literal == "line-through") {
+                Decoration.LineThrough = true;
+                Recognized = true;
+            } else if (V.Literal == "none") {
+                Recognized = true;
+            }
+        }
+        if (Recognized) {
+            Out.TextDecorationLine = Decoration;
+        }
     } else if (Prop == "flex-grow") {
         Out.FlexGrow = ParsePixels(Resolved[0], Prop, Diagnostics);
     } else if (Prop == "scrollbar-color") {
@@ -377,9 +400,27 @@ void ApplyRuleDeclarations(const Rule& R, const VariableScope& Scope, ResolvedSt
     }
 }
 
+bool ClassListContains(std::string_view ClassList, std::string_view Name) {
+    std::size_t Pos = 0;
+    while (Pos < ClassList.size()) {
+        while (Pos < ClassList.size() && std::isspace(static_cast<unsigned char>(ClassList[Pos]))) {
+            ++Pos;
+        }
+        std::size_t End = Pos;
+        while (End < ClassList.size() && !std::isspace(static_cast<unsigned char>(ClassList[End]))) {
+            ++End;
+        }
+        if (End > Pos && ClassList.substr(Pos, End - Pos) == Name) {
+            return true;
+        }
+        Pos = End;
+    }
+    return false;
+}
+
 bool SelectorHeadMatches(const Rule& R, const IStyleTarget& Element) {
     if (R.Kind == SelectorKind::Class) {
-        return !R.ClassName.empty() && Element.ClassName() == R.ClassName;
+        return !R.ClassName.empty() && ClassListContains(Element.ClassName(), R.ClassName);
     }
     const std::string_view MappedTag = PrimitiveTagForSelector(R.PrimitiveName);
     return !MappedTag.empty() && Element.PrimitiveTag() == MappedTag;
@@ -517,7 +558,8 @@ ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Shee
                             std::vector<ResolveDiagnostic>& OutDiagnostics) {
     ResolvedStyle Style = ResolveCascadedLayers(Target, Sheets, OutDiagnostics);
 
-    if ((!Style.TextColor || !Style.FontFamily || !Style.FontSizeLogical) && Target.Parent() != nullptr) {
+    if ((!Style.TextColor || !Style.FontFamily || !Style.FontSizeLogical || !Style.FontStyleMode) &&
+        Target.Parent() != nullptr) {
         const ResolvedStyle Ancestor = ResolveStyle(*Target.Parent(), Sheets, OutDiagnostics);
         if (!Style.TextColor) {
             Style.TextColor = Ancestor.TextColor;
@@ -527,6 +569,9 @@ ResolvedStyle ResolveStyle(const IStyleTarget& Target, const StylesheetSet& Shee
         }
         if (!Style.FontSizeLogical) {
             Style.FontSizeLogical = Ancestor.FontSizeLogical;
+        }
+        if (!Style.FontStyleMode) {
+            Style.FontStyleMode = Ancestor.FontStyleMode;
         }
         CombineFont(Style);
     }

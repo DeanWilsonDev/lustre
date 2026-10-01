@@ -634,4 +634,121 @@ DESCRIBE("Resolver", {
         ASSERT_FALSE(Diagnostics.empty());
         ASSERT_FALSE(Style.JustifyContent.has_value());
     });
+
+    IT("resolves font-style: italic and normal", {
+        const auto Sheet = ParseOrFail(".slanted { font-style: italic; } .upright { font-style: normal; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Slanted("slanted", "Text", nullptr, /*ComponentRoot=*/true);
+        FakeElement Upright("upright", "Text", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle SlantedStyle = R.Resolve(Slanted, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+        const ResolvedStyle UprightStyle = R.Resolve(Upright, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_TRUE(SlantedStyle.FontStyleMode.has_value());
+        ASSERT_TRUE(*SlantedStyle.FontStyleMode == FontStyle::Italic);
+        REQUIRE_TRUE(UprightStyle.FontStyleMode.has_value());
+        ASSERT_TRUE(*UprightStyle.FontStyleMode == FontStyle::Normal);
+    });
+
+    IT("resolves text-decoration lines, alone and together", {
+        const auto Sheet = ParseOrFail(R"(
+.under { text-decoration: underline; }
+.struck { text-decoration: line-through; }
+.both { text-decoration: underline line-through; }
+.plain { text-decoration: none; }
+)",
+                                        "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        auto Resolve = [&](const char* ClassName) {
+            FakeElement Element(ClassName, "Text", nullptr, /*ComponentRoot=*/true);
+            return R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+        };
+
+        const ResolvedStyle Under = Resolve("under");
+        const ResolvedStyle Struck = Resolve("struck");
+        const ResolvedStyle Both = Resolve("both");
+        const ResolvedStyle Plain = Resolve("plain");
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_TRUE(Under.TextDecorationLine.has_value());
+        ASSERT_TRUE(*Under.TextDecorationLine == (TextDecoration{.Underline = true, .LineThrough = false}));
+        REQUIRE_TRUE(Struck.TextDecorationLine.has_value());
+        ASSERT_TRUE(*Struck.TextDecorationLine == (TextDecoration{.Underline = false, .LineThrough = true}));
+        REQUIRE_TRUE(Both.TextDecorationLine.has_value());
+        ASSERT_TRUE(*Both.TextDecorationLine == (TextDecoration{.Underline = true, .LineThrough = true}));
+        REQUIRE_TRUE(Plain.TextDecorationLine.has_value());
+        ASSERT_TRUE(*Plain.TextDecorationLine == TextDecoration{});
+    });
+
+    IT("ignores an unknown text-decoration keyword", {
+        const auto Sheet = ParseOrFail(".x { text-decoration: overline; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("x", "Text", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_FALSE(Style.TextDecorationLine.has_value());
+    });
+
+    IT("matches every class in a space-separated class list, later rules winning", {
+        const auto Sheet = ParseOrFail(R"(
+.body { color: #101010; font-size: 14px; }
+.strong { font-family: "bold.ttf"; }
+.link { color: #20A0F0; text-decoration: underline; }
+)",
+                                        "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("link  body\tstrong", "Text", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.TextColor.has_value());
+        ASSERT_TRUE(*Style.TextColor == (Color{0x20, 0xA0, 0xF0, 0xFF}));
+        REQUIRE_TRUE(Style.Font.has_value());
+        ASSERT_TRUE(Style.Font->Path == "bold.ttf");
+        ASSERT_TRUE(Style.Font->SizeLogical == 14.0F);
+        REQUIRE_TRUE(Style.TextDecorationLine.has_value());
+        ASSERT_TRUE(Style.TextDecorationLine->Underline);
+    });
+
+    IT("does not match a class that is only a prefix of one in the list", {
+        const auto Sheet = ParseOrFail(".body { color: #101010; }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Element("body-text other", "Text", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Element, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_FALSE(Style.TextColor.has_value());
+    });
+
+    IT("matches a descendant selector against one class of an ancestor's list", {
+        const auto Sheet = ParseOrFail(".card { .label { color: #ABCDEF; } }", "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Card("panel card", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Label("label wide", "Text", &Card);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Label, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        REQUIRE_TRUE(Style.TextColor.has_value());
+        ASSERT_TRUE(*Style.TextColor == (Color{0xAB, 0xCD, 0xEF, 0xFF}));
+    });
 });

@@ -52,20 +52,16 @@ enum class Align { Start, Center, End, Stretch };
 // (pharos-proto's hand-rolled `ThreeZoneRow`) actually needs. No `SpaceAround`/
 // `SpaceEvenly`: not requested by anything, see docs/next_steps.md.
 enum class Justify { Start, Center, End, SpaceBetween };
-// docs/penumbra_iris_lustre_componentization_gaps_requirements.md's
-// InspectorRow migration finding: Label has no truncation concept at all,
-// so a long value can overflow instead of clipping. Only meaningful paired
-// with `max-width` below -- mirrors CSS's own text-overflow, which only
-// does anything once something has actually constrained the box's width.
 enum class TextOverflow { Clip, Ellipsis };
-// `white-space` (`text` only) -- CSS's own keyword pair, scoped to the two
-// values a known consumer (Cairn's Card Modal body text) actually needs:
-// `nowrap` (the default -- single line, pairs with max-width/text-overflow
-// above) and `normal` (reflow across as many lines as the box's own width
-// allows). Real, not stubbed, the same way max-width/text-overflow are real:
-// a backend `Label` can wrap its own text without needing Penumbra's general
-// fixed-size-override gap closed first.
 enum class WhiteSpace { Nowrap, Normal };
+enum class FontStyle { Normal, Italic };
+
+struct TextDecoration {
+    bool Underline{false};
+    bool LineThrough{false};
+
+    friend bool operator==(const TextDecoration&, const TextDecoration&) = default;
+};
 
 enum class LengthUnit { Px, Percent, Vw, Vh };
 
@@ -110,6 +106,8 @@ struct ResolvedStyle {
 
     std::optional<TextOverflow> TextOverflowMode;
     std::optional<WhiteSpace>   WhiteSpaceMode;
+    std::optional<FontStyle>      FontStyleMode;
+    std::optional<TextDecoration> TextDecorationLine;
 
     std::optional<float> FlexGrow;
     std::optional<Color> ScrollbarThumbColor;

@@ -140,7 +140,8 @@ const std::vector<std::string_view> kPropertyNames{
     "width",            "height",                      "min-width",
     "max-width",        "text-overflow",               "white-space",
     "transform",        "transition",                  "flex-grow",
-    "scrollbar-color",  "scrollbar-width",
+    "scrollbar-color",  "scrollbar-width",             "font-style",
+    "text-decoration",
 };
 
 const std::vector<std::string_view> kPrimitiveSelectorNames{
@@ -168,6 +169,12 @@ std::vector<std::string_view> PropertyValueKeywords(std::string_view Property) {
     }
     if (Property == "white-space") {
         return {"nowrap", "normal"};
+    }
+    if (Property == "font-style") {
+        return {"normal", "italic"};
+    }
+    if (Property == "text-decoration") {
+        return {"none", "underline", "line-through"};
     }
     return {};
 }
