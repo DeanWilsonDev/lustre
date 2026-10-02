@@ -7,6 +7,11 @@ namespace Lustre {
 namespace {
 bool IsIdentStart(char C) { return std::isalpha(static_cast<unsigned char>(C)) || C == '_'; }
 bool IsIdentChar(char C) { return std::isalnum(static_cast<unsigned char>(C)) || C == '_' || C == '-'; }
+bool IsDigit(char C) { return std::isdigit(static_cast<unsigned char>(C)) != 0; }
+bool StartsUnsignedNumber(char C, char Next) { return IsDigit(C) || (C == '.' && IsDigit(Next)); }
+bool StartsNumber(char C, char Next, char AfterNext) {
+    return StartsUnsignedNumber(C, Next) || (C == '-' && StartsUnsignedNumber(Next, AfterNext));
+}
 } // namespace
 
 Tokenizer::Tokenizer(std::string_view Source, std::string FilePath)
@@ -78,7 +83,7 @@ Token Tokenizer::NextToken() {
     if (IsIdentStart(C)) {
         return LexIdentifierLike();
     }
-    if (std::isdigit(static_cast<unsigned char>(C)) || (C == '.' && std::isdigit(static_cast<unsigned char>(PeekChar())))) {
+    if (StartsNumber(C, PeekChar(), PeekChar(2))) {
         return LexNumber();
     }
     if (C == '"') {
@@ -153,6 +158,9 @@ Token Tokenizer::LexVariableName() {
 Token Tokenizer::LexNumber() {
     const SourceLocation Loc = CurrentLocation();
     const std::size_t    Start = Pos_;
+    if (CurrentChar() == '-') {
+        Advance();
+    }
     while (!AtEnd() && std::isdigit(static_cast<unsigned char>(CurrentChar()))) {
         Advance();
     }
@@ -162,9 +170,6 @@ Token Tokenizer::LexNumber() {
             Advance();
         }
     }
-    // Unit suffix (px, %, vw, vh, rem, em, s) folded directly into the token
-    // text — the parser splits numeric value from unit, matching §1.5's
-    // closed unit set.
     while (!AtEnd() && (std::isalpha(static_cast<unsigned char>(CurrentChar())) || CurrentChar() == '%')) {
         Advance();
     }

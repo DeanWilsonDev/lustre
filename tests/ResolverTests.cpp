@@ -272,6 +272,48 @@ DESCRIBE("Resolver", {
         ASSERT_TRUE(Diagnostics[1].Message.find("padding: 5vw") != std::string::npos);
     });
 
+    IT("resolves negative margins, directly and through a variable", {
+        const auto Sheet = ParseOrFail(":root { --pull: -8px; }\n.x { margin: 0px 2px -4px -6.5px; }\n.y { margin: var(--pull); }",
+                                       "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement X("x", "Frame", nullptr, /*ComponentRoot=*/true);
+        FakeElement Y("y", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle XStyle = R.Resolve(X, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+        const ResolvedStyle YStyle = R.Resolve(Y, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_TRUE(Diagnostics.empty());
+        REQUIRE_TRUE(XStyle.Margin.has_value());
+        ASSERT_TRUE(*XStyle.Margin == (EdgeInsets{-6.5F, 0.0F, 2.0F, -4.0F}));
+        REQUIRE_TRUE(YStyle.Margin.has_value());
+        ASSERT_TRUE(*YStyle.Margin == (EdgeInsets{-8.0F, -8.0F, -8.0F, -8.0F}));
+    });
+
+    IT("rejects a negative length anywhere but margin with a diagnostic", {
+        const auto Sheet = ParseOrFail(
+            ":root { --pull: -8px; }\n.x { padding: 4px -2px; gap: -6px; width: -10%; font-size: var(--pull); }",
+            "test.lustre");
+        REQUIRE_TRUE(Sheet.has_value());
+
+        FakeElement Value("x", "Frame", nullptr, /*ComponentRoot=*/true);
+
+        Resolver                       R;
+        std::vector<ResolveDiagnostic> Diagnostics;
+        const ResolvedStyle Style = R.Resolve(Value, StylesheetSet{nullptr, &*Sheet}, false, Diagnostics);
+
+        ASSERT_FALSE(Style.Padding.has_value());
+        ASSERT_FALSE(Style.Gap.has_value());
+        ASSERT_FALSE(Style.Width.has_value());
+        ASSERT_FALSE(Style.FontSizeLogical.has_value());
+        ASSERT_EQUAL(Diagnostics.size(), std::size_t{4});
+        ASSERT_TRUE(Diagnostics[0].Message.find("padding: -2px") != std::string::npos);
+        ASSERT_TRUE(Diagnostics[0].Message.find("only `margin`") != std::string::npos);
+        ASSERT_TRUE(Diagnostics[3].Message.find("font-size: -8px") != std::string::npos);
+    });
+
     IT("resolves white-space: normal", {
         const auto Sheet = ParseOrFail(".x { white-space: normal; }", "test.lustre");
         REQUIRE_TRUE(Sheet.has_value());

@@ -33,6 +33,39 @@ DESCRIBE("Tokenizer", {
         ASSERT_TRUE(T8.Kind == TokenKind::EndOfFile);
     });
 
+    IT("lexes a leading minus as part of a number", {
+        Tokenizer Tok("margin: -6px -.5px 0px; --gap: -4px", "test.lustre");
+
+        ASSERT_TRUE(Tok.NextToken().Kind == TokenKind::Identifier);
+        ASSERT_TRUE(Tok.NextToken().Kind == TokenKind::Colon);
+
+        const Token T3 = Tok.NextToken();
+        ASSERT_TRUE(T3.Kind == TokenKind::Number && T3.Text == "-6px");
+
+        const Token T4 = Tok.NextToken();
+        ASSERT_TRUE(T4.Kind == TokenKind::Number && T4.Text == "-.5px");
+
+        const Token T5 = Tok.NextToken();
+        ASSERT_TRUE(T5.Kind == TokenKind::Number && T5.Text == "0px");
+
+        ASSERT_TRUE(Tok.NextToken().Kind == TokenKind::Semicolon);
+
+        const Token T7 = Tok.NextToken();
+        ASSERT_TRUE(T7.Kind == TokenKind::VariableName && T7.Text == "gap");
+
+        ASSERT_TRUE(Tok.NextToken().Kind == TokenKind::Colon);
+
+        const Token T9 = Tok.NextToken();
+        ASSERT_TRUE(T9.Kind == TokenKind::Number && T9.Text == "-4px");
+    });
+
+    IT("still lexes a lone minus as invalid", {
+        Tokenizer Tok("- 6px", "test.lustre");
+
+        const Token T1 = Tok.NextToken();
+        ASSERT_TRUE(T1.Kind == TokenKind::Invalid && T1.Text == "-");
+    });
+
     IT("lexes variable declarations and var() references", {
         Tokenizer Tok("--color-primary: #E8593C; var(--color-primary)", "test.lustre");
 

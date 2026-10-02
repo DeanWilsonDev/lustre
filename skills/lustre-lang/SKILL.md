@@ -123,6 +123,12 @@ and are resolved at layout time, so they follow resizes. Anywhere else they're
 a resolve diagnostic and the declaration is dropped. `width: 600px; max-width:
 100%;` is the way to write a dialog panel that shrinks in a narrow window.
 
+Only `margin` takes a negative length (`margin: 0px 0px 0px -6px;`), which pulls
+an element past its parent's content edge, for example so a button's hover
+padding bleeds out while its text lines up with the content above it. A negative
+length on any other property is a resolve diagnostic, and the declaration is
+dropped.
+
 ## Property reference (selected — full real-vs-stubbed table in `docs/lustre_core_spec.md` §2)
 
 **Real (applied by the Penumbra backend today):** `background-color`,

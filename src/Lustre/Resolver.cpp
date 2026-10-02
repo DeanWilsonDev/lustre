@@ -214,6 +214,16 @@ void ApplyDeclaration(const Declaration& Decl, const VariableScope& Scope, Resol
 
     const std::string& Prop = Decl.Property;
 
+    if (Prop != "margin") {
+        for (const auto& V : Resolved) {
+            if (V.Number && V.Number->starts_with('-')) {
+                Diagnostics.push_back(ResolveDiagnostic{"`" + Prop + ": " + *V.Number +
+                                                          "` -- only `margin` takes a negative length."});
+                return;
+            }
+        }
+    }
+
     if (IsContainerOnlyProperty(Prop) && !TargetTag.empty() && !IsContainerTag(TargetTag)) {
         Diagnostics.push_back(ResolveDiagnostic{"`" + Prop + "` has no effect on `" + std::string(TargetTag) +
                                                   "` -- it only applies to containers (`Frame`, `Grid`, `Scroll`, " +
